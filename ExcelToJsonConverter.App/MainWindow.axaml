@@ -1,0 +1,56 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="ExcelToJsonConverter.App.MainWindow"
+        Title="ExcelToJsonConverter.App">
+
+	<Grid Margin="16"
+		  RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
+		  RowSpacing="10">
+
+		<TextBlock Grid.Row="0" Text="Excel to JSON Converter" FontSize="20"/>
+
+		<StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10">
+			<Button Name="BtnPickExcel" Content="Excel Seç" Width="120"/>
+			<TextBlock Name="TxtExcelPath" Text="(Excel Seçilmedi)" VerticalAlignment="Center"/>
+		</StackPanel>
+
+		<StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="10">
+			<TextBlock Text="Tür:" VerticalAlignment="Center"/>
+			<ComboBox Name="CmbType" Width="260" SelectedIndex="0">
+				<ComboBoxItem Content="channel_configure"/>
+				<ComboBoxItem Content="channel_transfer"/>
+				<ComboBoxItem Content="test_add_directives"/>
+				<ComboBoxItem Content="test_prepare"/>
+			</ComboBox>
+		</StackPanel>
+
+		<StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="10">
+			<TextBlock Name="TxtSelectedType" Text="Seçili tür: channel_configure"/>
+		</StackPanel>
+
+		<Border Grid.Row="4" Padding="10" CornerRadius="6" BorderThickness="1">
+			<StackPanel Spacing="6">
+				<TextBlock Text="Beklenen Excel Formatı" FontWeight="Bold"/>
+				<TextBlock Name="TxtExpectedFormat"
+						   TextWrapping="Wrap"
+						   Text="(Tür seçince burada beklenen sheet ve kolonlar görünecek)"/>
+			</StackPanel>
+		</Border>
+
+		<StackPanel Grid.Row="5" Orientation="Vertical" Spacing="10">
+			<Button Name="BtnConvert" Content="Convert / Preview" Width="150"/>
+			<TextBox Name="TxtPreview"
+					 AcceptsReturn="True"
+					 TextWrapping="Wrap"
+					 ScrollViewer.VerticalScrollBarVisibility="Auto"
+					 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+					 VerticalAlignment="Stretch"
+					 IsReadOnly="True"
+					 Watermark="JSON önizleme burada görünecek..."/>
+		</StackPanel>
+
+	</Grid>
+</Window>
