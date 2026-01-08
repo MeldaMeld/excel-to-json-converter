@@ -1,0 +1,149 @@
+using System.IO; //dosya yolu iþlemleri, dosyaya yazma
+using System; //temel türler tipler, exception vs.
+using System.Linq;
+using System.Text.Json; //C# objesini JSON’a çevirme
+using ClosedXML.Excel; //Excel dosyasýný açýp hücre okumak
+using Avalonia.Controls; //UI kontrolleridir, textbox, combobox vs.
+
+
+public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn nedeni, hem UI hem de kod tarafý farklý dosyalarda olup sonra birleþmesidir.
+{
+    public MainWindow() //constructor: program açýlýrken ilk çalýþan yer.
+    {
+        InitializeComponent(); //XAML'de çizdiðim UI'yý yükler.
+        BtnPickExcel.Click += BtnPickExcel_Click; //BtnPickExcel butonuna týklanýrsa, BtnPickExcel_Click fonksiyonunu çalýþtýr.
+        CmbType.SelectionChanged += CmbType_SelectionChanged; //ComboBox’tan seçim deðiþince çalýþacak fonksiyon.
+        BtnConvert.Click += BtnConvert_Click; //Convert/Preview butonuna týklanýnca çalýþacak fonksiyon.
+    }
+    private async void BtnPickExcel_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e) //async çünkü kullanýcýdan dosya seçmesini bekleyen bir iþlem var (dialog).
+    {
+        var dlg = new OpenFileDialog //Dosya seçme penceresi oluþturuyor
+        { //bu pencere kurallarý:
+            Title = "Excel dosyasý seç",
+            AllowMultiple = false, //kullanýcý sadece 1 dosya seçebilsin.
+            Filters = //sadece excel göster için filtresi.
+        {
+            new FileDialogFilter { Name = "Excel", Extensions = { "xlsx", "xlsm" } }
+        }
+        };
+
+        var result = await dlg.ShowAsync(this); //Pencereyi açýp kullanýcýdan seçim bekliyor.
+        if (result is { Length: > 0 }) //Kullanýcý en az 1 dosya seçti mi?
+            TxtExcelPath.Text = result[0]; //Seçilen dosyayý ekrana yaz.
+    }
+
+    private void CmbType_SelectionChanged(object? sender, SelectionChangedEventArgs e) //Kullanýcý tür listesinden bir seçim deðiþtirdiðinde çalýþacak fonksiyon.
+    {
+        var selected = //kullanýcý hangi türü seçti.
+            (CmbType.SelectedItem as ComboBoxItem)?.Content?.ToString()
+            ?? "unknown"; //seçilmediyse unknown yaz.
+
+        TxtSelectedType.Text = $"Seçili tür: {selected}";
+    }
+
+    private void BtnConvert_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        try //try-catch: Excel dosyasý bozuk olabilir ya da kullanýcý yanlýþ seçebilir. Eðer hata olursa program çökmesin diye, hata mesajýný ekrana yazdýrýyor.
+        {
+            var selectedType = //kullanýcýnýn seçtiði türü alýyoruz.
+                (CmbType.SelectedItem as ComboBoxItem)?.Content?.ToString()
+                ?? "unknown";
+
+            var excelPath = TxtExcelPath.Text ?? ""; //excel dosyasý seçilmiþ mi?
+
+            if (string.IsNullOrWhiteSpace(excelPath)) //excel dosyasý seçilmemiþse dur.
+            {
+                TxtPreview.Text = "Önce Excel dosyasý seçmelisin.";
+                return;
+            }
+
+            if (selectedType != "channel_transfer") //Þimdilik sadece channel_transfer destekleniyor.
+            {
+                TxtPreview.Text =
+                    $"Þimdilik sadece 'channel_transfer' destekleniyor. Seçili: {selectedType}";
+                return;
+            }
+
+            var json = ConvertChannelTransferFromExcel(excelPath); //excel dosyasýný alýyor, okuyor sonra JSON hazýrlýyor.
+
+            var directory = Path.GetDirectoryName(excelPath); //excel dosyasý nerede duruyor?
+            var fileNameWithoutExt = Path.GetFileNameWithoutExtension(excelPath); //excel dosyasýnýn adý ne?
+            var jsonPath = Path.Combine(directory!, fileNameWithoutExt + ".json"); //ayný klasöre ayný isimle ama formatý .json yap.
+
+            File.WriteAllText(jsonPath, json); //json metnini al ve jsonPath konumuna dosya olarak kaydet.
+
+            TxtPreview.Text = json + "\n\nKaydedildi:\n" + jsonPath; //Hem JSON’u hem kaydedilen yeri ekrana yaz.
+        }
+        catch (Exception ex)
+        {
+            TxtPreview.Text = $"Hata: {ex.Message}";
+        }
+    }
+
+
+    private static string ConvertChannelTransferFromExcel(string excelPath) // excel dosyasýný aç, channel transfer dosyasýný oku, her satýrý JSON'a çevir, hepsini liste yap ve JSON metni olarak geri döndür.
+    {
+        using var wb = new XLWorkbook(excelPath); // excel dosyasýný aç, iþin bitince kapat(using).
+        var ws = wb.Worksheet("Channel_Transfer"); // Channel_Transfer isimli sayfayý bul ve onu okuyacaðým.
+
+        int Col(string header) //kolonlarýn yeri sabit olmayabilir diye baþlýktan buluruz.
+        {
+            var headerRow = ws.Row(1); //baþlýk satýrýný al (1.satýr baþlýklar)
+            var cell = headerRow.CellsUsed() //baþlýklarýn içinde aradýðýný bul.
+                .FirstOrDefault(c => string.Equals(c.GetString().Trim(), header, StringComparison.OrdinalIgnoreCase));
+
+            if (cell == null) //bulamazsan hata ver.
+                throw new Exception($"Excel'de '{header}' baþlýðý bulunamadý (Sheet: Channel_Transfer).");
+
+            return cell.Address.ColumnNumber; //bulduysa sütun numarasýný döndür.
+        }
+
+        // Kolonlarý bir kere bul
+        int cTxChannelId = Col("tx_channel_id"); //excelde bu baþlýklae hangi sütunda onlarý bul ve aklýnda tut.
+        int cRxMsgLength = Col("rx_msg_length");
+        int cTxMsg = Col("tx_msg");
+        int cTimeoutUsec = Col("timeout_usec");
+
+        var results = new System.Collections.Generic.List<object>(); //Her satýrdan bir JSON obje oluþturacaðýz. Hepsini bu listeye atacaðýz.
+
+        // 2. satýrdan itibaren oku çünkü 1. satýr baþlýklarý içeriyor.
+        for (int row = 2; ; row++)
+        {
+            var txIdCell = ws.Cell(row, cTxChannelId); // tx_channel_id boþsa (veya satýr tamamen boþsa) dur
+            if (txIdCell.IsEmpty() || string.IsNullOrWhiteSpace(txIdCell.GetString()))
+                break;
+
+            int txChannelId = txIdCell.GetValue<int>(); // O satýrdaki deðerleri alýyoruz
+            int rxMsgLength = ws.Cell(row, cRxMsgLength).GetValue<int>();
+            string txMsgRaw = ws.Cell(row, cTxMsg).GetString();
+            int timeoutUsec = ws.Cell(row, cTimeoutUsec).GetValue<int>();
+
+            var txMsg = txMsgRaw //"15,61,62" yazýsýný listeye çeviriyoruz
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(int.Parse)
+                .ToArray();
+
+            var payload = new //O satýr için JSON objesini kuruyoruz
+            {
+                r_type = "channel_transfer",
+                r = new
+                {
+                    tx_channel_id = new { id = txChannelId },
+                    rx_msg_length = rxMsgLength,
+                    tx_msg = txMsg,
+                    timeout_usec = timeoutUsec
+                }
+            };
+
+            results.Add(payload); //Listeye ekliyoruz.
+        }
+
+        if (results.Count == 0) //Hiç satýr yoksa hata ver.
+            throw new Exception("Channel_Transfer sheet içinde hiç veri satýrý bulunamadý (2. satýrdan itibaren).");
+
+        //Listeyi JSON metnine çevirip geri döndür
+        return JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true });
+    }
+
+
+}

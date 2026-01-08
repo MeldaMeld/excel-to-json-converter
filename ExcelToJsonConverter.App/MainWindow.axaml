@@ -3,54 +3,193 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
-        x:Class="ExcelToJsonConverter.App.MainWindow"
+		x:Class="ExcelToJsonConverter.App.MainWindow"
         Title="ExcelToJsonConverter.App">
 
-	<Grid Margin="16"
-		  RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
-		  RowSpacing="10">
+	<Grid Margin="18"
+		  RowDefinitions="Auto,Auto,*"
+		  RowSpacing="12">
 
-		<TextBlock Grid.Row="0" Text="Excel to JSON Converter" FontSize="20"/>
-
-		<StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10">
-			<Button Name="BtnPickExcel" Content="Excel Seç" Width="120"/>
-			<TextBlock Name="TxtExcelPath" Text="(Excel Seçilmedi)" VerticalAlignment="Center"/>
+		<!-- Header -->
+		<StackPanel Grid.Row="0" Spacing="2">
+			<TextBlock Text="Excel → JSON Converter"
+					   FontSize="20"
+					   FontWeight="SemiBold"/>
+			<TextBlock Text="Internal Tool - DEICO"
+					   Opacity="0.65"/>
 		</StackPanel>
 
-		<StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="10">
-			<TextBlock Text="Tür:" VerticalAlignment="Center"/>
-			<ComboBox Name="CmbType" Width="260" SelectedIndex="0">
-				<ComboBoxItem Content="channel_configure"/>
-				<ComboBoxItem Content="channel_transfer"/>
-				<ComboBoxItem Content="test_add_directives"/>
-				<ComboBoxItem Content="test_prepare"/>
-			</ComboBox>
-		</StackPanel>
+		<!-- Content: 2 columns -->
+		<Grid Grid.Row="2"
+			  ColumnDefinitions="420,*"
+			  ColumnSpacing="14">
 
-		<StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="10">
-			<TextBlock Name="TxtSelectedType" Text="Seçili tür: channel_configure"/>
-		</StackPanel>
+			<!-- LEFT CARD -->
+			<Border Grid.Column="0"
+					Padding="12"
+					CornerRadius="12"
+					BorderThickness="1"
+					BorderBrush="#E2E2E2"
+					Background="#141414">
+				<Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
 
-		<Border Grid.Row="4" Padding="10" CornerRadius="6" BorderThickness="1">
-			<StackPanel Spacing="6">
-				<TextBlock Text="Beklenen Excel Formatı" FontWeight="Bold"/>
-				<TextBlock Name="TxtExpectedFormat"
-						   TextWrapping="Wrap"
-						   Text="(Tür seçince burada beklenen sheet ve kolonlar görünecek)"/>
-			</StackPanel>
-		</Border>
+					<!-- Card header -->
+					<TextBlock Text="Input" FontWeight="Bold" />
 
-		<StackPanel Grid.Row="5" Orientation="Vertical" Spacing="10">
-			<Button Name="BtnConvert" Content="Convert / Preview" Width="150"/>
-			<TextBox Name="TxtPreview"
-					 AcceptsReturn="True"
-					 TextWrapping="Wrap"
-					 ScrollViewer.VerticalScrollBarVisibility="Auto"
-					 ScrollViewer.HorizontalScrollBarVisibility="Auto"
-					 VerticalAlignment="Stretch"
-					 IsReadOnly="True"
-					 Watermark="JSON önizleme burada görünecek..."/>
-		</StackPanel>
+					<!-- “Toolbar row” like the mock -->
+					<Grid Grid.Row="1"
+						  ColumnDefinitions="Auto,*"
+						  ColumnSpacing="10"
+						  RowDefinitions="Auto,Auto"
+						  RowSpacing="8">
 
+						<!-- Excel picker row -->
+						<Button Grid.Row="0" Grid.Column="0"
+								Name="BtnPickExcel"
+								Content="Excel Seç"
+								Width="120"/>
+
+						<Border Grid.Row="0" Grid.Column="1"
+								CornerRadius="8"
+								BorderThickness="1"
+								BorderBrush="#E2E2E2"
+								Background="#141414"
+								Padding="10,8">
+							<TextBox Name="TxtExcelPath"
+									 Text="(Excel Seçilmedi)"
+									 IsReadOnly="True"
+									 BorderThickness="0"
+									 Background="Transparent"
+									 Opacity="0.85"
+									 TextWrapping="Wrap"/>
+
+						</Border>
+
+						<!-- Type row -->
+						<TextBlock Grid.Row="1" Grid.Column="0"
+								   Text="Tür"
+								   VerticalAlignment="Center"
+								   Opacity="0.75"/>
+
+						<ComboBox Grid.Row="1" Grid.Column="1"
+								  Name="CmbType"
+								  SelectedIndex="0">
+							<ComboBoxItem Content="channel_configure"/>
+							<ComboBoxItem Content="channel_transfer"/>
+							<ComboBoxItem Content="test_add_directives"/>
+							<ComboBoxItem Content="test_prepare"/>
+						</ComboBox>
+					</Grid>
+
+					<!-- Expected format box + bottom row -->
+					<Grid Grid.Row="2" RowDefinitions="Auto,*,Auto" RowSpacing="10">
+
+						<!-- Expected format -->
+						<Border Grid.Row="0"
+								Padding="10"
+								CornerRadius="10"
+								BorderBrush="#E2E2E2"
+								Background="#141414">
+							<Grid RowDefinitions="Auto,*" RowSpacing="6">
+								<TextBlock Text="Beklenen Excel Format" FontWeight="Bold"/>
+								<ScrollViewer Grid.Row="1"
+											  VerticalScrollBarVisibility="Auto"
+											  HorizontalScrollBarVisibility="Disabled"
+											  MaxHeight="320">
+									<TextBlock Name="TxtExpectedFormat"
+											   TextWrapping="Wrap"
+											   Text="(Tür seçince burada beklenen sheet ve kolonlar görünecek)"/>
+								</ScrollViewer>
+							</Grid>
+						</Border>
+
+						<!-- Bottom row: status + convert button -->
+						<Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+							<Border CornerRadius="10"
+									BorderThickness="1"
+									BorderBrush="#E2E2E2"
+									Background="#141414"
+									Padding="10,8">
+								<TextBlock Name="TxtSelectedType"
+										   Text="Seçili tür: channel_configure"
+										   Opacity="0.85"/>
+							</Border>
+							<Button Name="BtnConvert"
+									Content="Convert"
+									Width="120"
+									HorizontalAlignment="Right"
+									Background="#3B82F6"
+									Foreground="White"
+									CornerRadius="8"
+									FontWeight="SemiBold"/>
+						</Grid>
+
+					</Grid>
+				</Grid>
+			</Border>
+
+			<!-- RIGHT CARD -->
+			<Border Grid.Column="1"
+					Padding="12"
+					CornerRadius="12"
+					BorderThickness="1"
+					BorderBrush="#E2E2E2"
+					Background="#141414">
+				<Grid RowDefinitions="Auto,* ,Auto" RowSpacing="10">
+
+					<!-- Right header -->
+					<Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+						<TextBlock Text="JSON Preview"
+								   Foreground="White"
+								   FontWeight="Bold"/>
+						<TextBlock Grid.Column="1"
+								   Text="⋯"
+								   Foreground="White"
+								   Opacity="0.6"
+								   FontSize="18"
+								   VerticalAlignment="Center"/>
+					</Grid>
+
+					<!-- Preview box -->
+					<Border Grid.Row="1"
+							CornerRadius="10"
+							BorderThickness="1"
+							BorderBrush="#2A2A2A"
+							Background="#1E1E1E"
+							Padding="10">
+						<TextBox Name="TxtPreview"
+								 AcceptsReturn="True"
+								 TextWrapping="NoWrap"
+								 ScrollViewer.VerticalScrollBarVisibility="Auto"
+								 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+								 IsReadOnly="True"
+								 Background="Transparent"
+								 Foreground="White"
+								 BorderThickness="0"
+								 FontFamily="Consolas"
+								 CaretBrush="White"
+								 SelectionBrush="#3B82F6"
+								 FocusAdorner="{x:Null}"
+								 Watermark="JSON önizleme burada görünecek..." />
+					</Border>
+
+					<!-- Bottom status -->
+					<Border Grid.Row="2"
+							CornerRadius="10"
+							BorderThickness="1"
+							BorderBrush="#2A2A2A"
+							Background="#191919"
+							Padding="10,8">
+						<StackPanel Orientation="Horizontal" Spacing="8">
+							<TextBlock Foreground="White"
+									   Opacity="0.85"
+									   Text="Hazır"/>
+						</StackPanel>
+					</Border>
+
+				</Grid>
+			</Border>
+
+		</Grid>
 	</Grid>
 </Window>
