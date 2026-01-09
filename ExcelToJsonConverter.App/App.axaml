@@ -7,4 +7,15 @@
     <Application.Styles>
         <FluentTheme />
     </Application.Styles>
+	<Application.Resources>
+		<Color x:Key="DeicoBlue">#0066B3</Color>
+		<Color x:Key="DeicoLightBlue">#E6F0F8</Color>
+		<Color x:Key="DarkBackground">#1E1E1E</Color>
+		<Color x:Key="CardBackground">#2D2D30</Color>
+
+		<SolidColorBrush x:Key="DeicoBlueBrush" Color="{StaticResource DeicoBlue}" />
+		<SolidColorBrush x:Key="DeicoLightBlueBrush" Color="{StaticResource DeicoLightBlue}" />
+		<SolidColorBrush x:Key="DarkBackgroundBrush" Color="{StaticResource DarkBackground}" />
+		<SolidColorBrush x:Key="CardBackgroundBrush" Color="{StaticResource CardBackground}" />
+	</Application.Resources>
 </Application>

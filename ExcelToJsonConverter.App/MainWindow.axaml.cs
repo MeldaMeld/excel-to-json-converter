@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using ClosedXML.Excel; //Excel dosyasýný açýp hücre okumak
+using DocumentFormat.OpenXml.VariantTypes;
 using System; //temel türler tipler, exception vs.
 using System.Collections.Generic;
 using System.IO; //dosya yolu iþlemleri, dosyaya yazma
@@ -40,7 +41,6 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
             (CmbType.SelectedItem as ComboBoxItem)?.Content?.ToString()
             ?? "unknown";
 
-        TxtSelectedType.Text = $"Seçili tür: {selected}";
         TxtExpectedFormat.Text = selected switch
         {
             "channel_transfer" =>
@@ -116,15 +116,22 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
     {
         try //try-catch: Excel dosyasý bozuk olabilir ya da kullanýcý yanlýþ seçebilir. Eðer hata olursa program çökmesin diye, hata mesajýný ekrana yazdýrýyor.
         {
+            SuccessPanel.IsVisible = false;
+            ErrorPanel.IsVisible = false;
+
+            TxtResultPath.Text = "";
+            TxtError.Text = "";
             var selectedType = //kullanýcýnýn seçtiði türü alýyoruz.
                 (CmbType.SelectedItem as ComboBoxItem)?.Content?.ToString()
                 ?? "unknown";
 
             var excelPath = TxtExcelPath.Text ?? ""; //excel dosyasý seçilmiþ mi?
 
-            if (string.IsNullOrWhiteSpace(excelPath)) //excel dosyasý seçilmemiþse dur.
+            if (string.IsNullOrWhiteSpace(excelPath) || excelPath == "(Excel Seçilmedi)")
             {
                 TxtPreview.Text = "Önce Excel dosyasý seçmelisin.";
+                SuccessPanel.IsVisible = false;     // önemli
+                TxtResultPath.Text = "";            // temizle
                 return;
             }
 
@@ -134,19 +141,27 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
                 "channel_configure" => ConvertChannelConfigureFromExcel(excelPath),
                 "test_add_directives" => ConvertTestAddDirectivesFromExcel(excelPath),
                 "test_prepare" => ConvertTestPrepareFromExcel(excelPath),
+                _ => throw new Exception($"Bilinmeyen tür: {selectedType}")
             };
 
-            var directory = Path.GetDirectoryName(excelPath); //excel dosyasý nerede duruyor?
+            var directory = Path.GetDirectoryName(excelPath) ?? Environment.CurrentDirectory; //excel dosyasý nerede duruyor?
             var fileNameWithoutExt = Path.GetFileNameWithoutExtension(excelPath); //excel dosyasýnýn adý ne?
-            var jsonPath = Path.Combine(directory!, fileNameWithoutExt + ".json"); //ayný klasöre ayný isimle ama formatý .json yap.
+            var jsonPath = Path.Combine(directory, fileNameWithoutExt + ".json"); //ayný klasöre ayný isimle ama formatý .json yap.
 
             File.WriteAllText(jsonPath, json); //json metnini al ve jsonPath konumuna dosya olarak kaydet.
+            TxtPreview.Text = json;   // sadece JSON
 
-            TxtPreview.Text = json + "\n\nKaydedildi:\n" + jsonPath;
+            TxtResultPath.Text = jsonPath;
+            SuccessPanel.IsVisible = true;
         }
         catch (Exception ex)
         {
             TxtPreview.Text = $"Hata: {ex.Message}";
+
+            TxtError.Text = ex.Message;
+            ErrorPanel.IsVisible = true;
+
+            SuccessPanel.IsVisible = false;
         }
     }
 
