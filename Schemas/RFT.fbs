@@ -1,0 +1,578 @@
+//
+// Author: adh
+//
+// Notes:
+//
+// - Channel IDs parameters are removed from data field definitions.
+//   The reason is that a TX channel has a single fixed RX channel (for now).
+//   If this restriction is removed, it must be added back.
+//
+// - RS-485 and UDP channels are separated.
+//
+// - Each channel has a separate timeout value.
+//
+// - Because vectors already have an internal size value,
+//   command length configuration is removed.
+//
+// - There is no longer any ID except for channels.
+//   Objects are referred with vector indices where they are defined.
+//
+// - 'Criterion' is separated.
+//   The function will be defined explicitly as byte code with 'Evaluation'.
+//   For a simple subtraction (Field_0 - Field_1), it will be defined as:
+//     LOAD_FIELD  0
+//     LOAD_FIELD  1
+//     BINARY_OP   SUB
+//
+// - For binary operations and comparisons, both operands must have exactly the same type.
+//   Use 'cast' operation as necessary. Similarly, variables have an explicit type.
+//
+
+// ===============================================
+// Common
+// ===============================================
+
+namespace RFT;
+
+table Empty {}
+
+struct Uint8   {x : uint8;}
+struct Int8    {x : int8;}
+struct Uint16  {x : uint16;}
+struct Int16   {x : int16;}
+struct Uint32  {x : uint32;}
+struct Int32   {x : int32;}
+struct Float32 {x : float32;}
+
+union Scalar {
+  s8  : Int8,
+  u8  : Uint8,
+  s16 : Int16,
+  u16 : Uint16,
+  s32 : Int32,
+  u32 : Uint32,
+  f32 : Float32,
+}
+
+enum ScalarTypeEnum : uint8 {
+  NONE, // To match the union type. NONE is reserved as 0 in a union type.
+  S8,   // int8_t
+  U8,   // uint8_t
+  S16,  // int16_t
+  U16,  // uint16_t
+  S32,  // int32_t
+  U32,  // uint32_t
+  F32,  // float
+}
+
+// A wrapper to use in unions.
+struct ScalarType {x : ScalarTypeEnum;}
+
+struct ChannelId {
+  // Must be in [0, 7].
+  // RS-485 interfaces are 0..3
+  // UDP interfaces are 4..7
+  id : uint8;
+}
+
+// ===============================================
+// Errors
+// ===============================================
+
+// Do not assign specific values.
+enum Status : int8 {
+  Ok = 0,         // No error
+  NotFinite,      // Floating-point number is NaN or infinite
+  InvalidArg,     // Argument is wrong (out of bound, etc.)
+  OutOfMemory,    // Cannot allocate
+  DeviceMode,     // The call is unavailable in the current mode.
+  RequestTimeout, // Request is not fully received in time
+  InvalidConfig,  // Conflicting configuration options
+  UnitTimeout,    // Unit has not responded in time
+  Assigned,       // The resource is already assigned to another
+  NotAssigned,    // The resource is not assigned
+  NotImplemented, // This feature is not implemented
+  InvalidRequest, // Invalid request
+  RequestError,   // Missing bytes in the request or a verification error
+  MessageError,   // CRC error, etc.
+  TestRunTimeError, // Test run time error
+}
+
+table Error_Rsp {
+  str : string;
+}
+
+// =============================================================================
+
+// ===============================================
+// RS-485
+// ===============================================
+
+namespace RFT.Interface.RS485;
+
+enum Parity : uint8 {
+  NoParity,
+  Odd,
+  Even,
+  Space,
+  Mark,
+}
+
+enum BaudRate : uint32 {
+  Invalid  = 0,
+  SlowRate = 4125000,
+  FastRate = 8250000,
+}
+
+enum StopBit : uint8 {
+  Invalid  = 0,
+  N1       = 1,
+  N2       = 2,
+}
+
+enum DataBits : uint8 {
+  Invalid  = 0,
+  N5       = 5,
+  N6       = 6,
+  N7       = 7,
+  N8       = 8,
+}
+
+struct Config {
+  baud_rate   : BaudRate; // Initial value = SlowRate
+  stop_bit    : StopBit;  // Initial value = N1
+  data_bits   : DataBits; // Initial value = N8
+  parity      : Parity;   // Initial value = NoParity
+  termination : bool;     // Initial value = false
+}
+
+// ===============================================
+// UDP
+// ===============================================
+
+namespace RFT.Interface.UDP;
+
+struct IP {
+  ip : [uint8:4];
+}
+
+struct Config {
+  src_ip   : IP;     // Initial value = 0.0.0.0
+  src_port : uint16; // Initial value = 7
+  dst_ip   : IP;     // Initial value = 255.255.255.255
+  dst_port : uint16; // Initial value = 7
+}
+
+// ===============================================
+// Interface
+// ===============================================
+
+namespace RFT.Interface;
+
+union Config {
+  rs485 : RFT.Interface.RS485.Config,
+  udp   : RFT.Interface.UDP.Config,
+}
+
+// ===============================================
+// General channel
+// ===============================================
+
+namespace RFT.Channel;
+
+table Config {
+  //
+  channel_id : ChannelId (required);
+
+  // Do not set, in order not to bind it to a receiver.
+  // Use the same as 'channel_id' if response shall come from the same channel.
+  rx_channel_id : ChannelId;
+
+  //
+  interface_config : RFT.Interface.Config (required);
+
+  // Time in microseconds.
+  // If it is not smaller than the loop period, the test will lag.
+  // Initial value is 1000 usec.
+  // Maximum value is 1 sec.
+  timeout_usec : uint32;
+}
+
+//
+// Configure channels.
+//
+// Unavailable during test.
+//
+table Configure_Req {
+  configs : [Config]; // Each 'tx_channel_id' and 'rx_channel_id' must be unique.
+}
+table Configure_Rsp {}
+
+
+//
+// Perform a message transfer.
+//
+// Unavailable during test.
+//
+table Transfer_Req {
+  tx_channel_id : ChannelId (required);
+  rx_msg_length : uint8;                // Expected response length. Can be zero.
+  tx_msg        : [uint8]   (required); // Message to transmit
+  timeout_usec  : uint32    = 0;        // If 0, the configuration timeout value will be used. Maximum value is 1 sec.
+}
+table Transfer_Rsp {
+  rx_msg    : [uint8] (required); // Received message
+  timeout_err : bool  = false;
+  crc_err     : bool  = false;
+}
+
+// =============================================================================
+
+namespace RFT.Test;
+
+// ===============================================
+// Field
+// ===============================================
+
+enum FieldSource : uint8 {
+  Tx, // Command message to unit
+  Rx, // Response message from unit
+}
+
+struct Field {
+  field_source : FieldSource; // Command message or response message
+  offset       : uint8;       // Offset within message
+  scalar_type  : ScalarType;  // How to interpret the field
+  big_endian   : bool;        // TODO: almost always big, this struct might become a table.
+}
+
+// The index within RFT.Test.Prepare() 'fields' vector.
+// For each member 'field_source' must match.
+// Each field must have the type F32.
+struct ArgIndices {
+  response1 : uint32;
+  response2 : uint32;
+  command2  : uint32;
+  command3  : uint32;
+}
+
+struct Binding {
+  tx_channel_id : ChannelId;
+  arg_indices   : ArgIndices; // Dynamic calculation block parameters
+}
+
+// ===============================================
+// Evaluation
+// ===============================================
+
+// Do not assign specific values.
+enum BinaryOpType : uint8 {
+  Add,
+  Sub,
+  Mul,
+  Div,
+}
+
+struct BinaryOp {
+  op : BinaryOpType;
+}
+
+enum FunctionType : uint8 {
+  Invalid,
+  Abs,     // Absolute value. # of parameters = 1. Return type is the same.
+}
+
+struct Function {
+  func : FunctionType;
+}
+
+//
+// Instruction type is embedded in the union.
+//
+union Instruction {
+  // Binary operation. Top of the stack is the right argument. One below is the left argument.
+  // Parameter is the operation type.
+  binary_op : BinaryOp,
+
+  // Load field to stack.
+  // Parameter is the index within 'fields' vector argument of RFT.Test.Prepare() function.
+  load_field : Uint32,
+
+  // Load constant to stack.
+  // Parameter is the index within 'constants' vector in an Evaluation object.
+  load_const : Uint32,
+
+  // Load variable to stack.
+  // Parameter is an index.
+  load_var : Uint32,
+
+  // Load function.
+  // Parameter is the function type.
+  load_func : Function,
+
+  // Store top of the stack to a variable
+  // Parameter is an index.
+  store_var : Uint32,
+
+  // Call loaded function
+  // Parameter is the number of argument the function has. Must be above non-zero.
+  call : Uint8,
+
+  // Cast the top of the stack to another type
+  // Parameter is a dummy scalar with the desired type.
+  cast : ScalarType,
+}
+
+// TODO: Each member might be wrapped in a table.
+table Evaluation {
+  instructions : [Instruction] (required);
+  constants    : [Scalar]      (required);
+  variables    : [Scalar]      (required); // Initial values are not used
+}
+
+// ===============================================
+// Comparison
+// ===============================================
+
+enum ComparisonOp : uint8 {
+  Eq, // current == value
+  Ne, // current != value
+  Lt, // current <  value
+  Le, // current <= value
+  Gt, // current >  value
+  Ge, // current >= value
+}
+
+table Comparison {
+  op    : ComparisonOp;
+  value : Scalar (required);
+}
+
+table ChannelCriterion {
+  // The index within RFT.Test.Prepare() 'evaluations' vector.
+  evaluation_idx : uint32;
+
+  // All comparisons are logically AND'ed. Use two comparisons to check within a range.
+  // Set to empty vector to disable evaluation as well.
+  comparisons : [Comparison] (required);
+
+  // If true, the comparison result will be inverted. Use two comparisons to check OUTSIDE a range.
+  invert_logic : bool = false;
+
+  // The criterion checking starts at this time.
+  start_time_step : uint32;
+
+  // Inclusive
+  end_time_step : uint32;
+}
+
+table Criterion {
+  tx_channel_id    : ChannelId (required); // Which channel will use this criterion.
+  channel_criteria : [ChannelCriterion];
+}
+
+// ===============================================
+// Test
+// ===============================================
+
+//
+// One row of the command table.
+//
+table ChannelDirective {
+  // Length can be zero to skip time.
+  tx_msg : [uint8] (required);
+
+  // Can be zero.
+  rx_msg_length : uint8;
+
+  // Dynamic calculation block (CalcBlock + interpolation).
+  // Cannot be set to true for channels without bound parameters.
+  use_dcb : bool = false;
+
+  // Number of time steps
+  step_count : uint32 = 1;
+}
+
+//
+// Channel ID with multiple command rows.
+//
+table Directive {
+  tx_channel_id      : ChannelId          (required);
+  channel_directives : [ChannelDirective] (required);
+}
+
+struct QueueInfo {
+  used : uint32;
+  free : uint32;
+}
+
+//
+// Prepare test.
+//
+// For a channel to be used during test at least one criterion must be given.
+// "start_time_step = end_time_step = 0xFFFFFFFF" can be used. Note
+//
+// Unavailable during test.
+//
+table Prepare_Req {
+  fields      : [Field]      (required);
+  evaluations : [Evaluation] (required);
+  bindings    : [Binding]    (required); // 'tx_channel_id' must not be repeated.
+  criteria    : [Criterion]  (required); // 'tx_channel_id' must not be repeated.
+  period_usec : uint32;                  // Period in microseconds. Must be (>= 1000). Initial value is 2000.
+}
+table Prepare_Rsp {}
+
+//
+// Load directives (command rows).
+//
+// Can be called before test starts.
+//
+table AddDirectives_Req {
+  directives : [Directive] (required);
+}
+table AddDirectives_Rsp {}
+
+//
+// Start or stop the test
+//
+// RFT.Test.Enable(true) will start the test.
+// Certain functions are not available if test mode is enabled and vice versa.
+//
+table Enable_Req {
+  flag : bool; // true to enable, false to disable and reset directives
+}
+table Enable_Rsp {}
+
+//
+// Get test status.
+//
+table GetStatus_Req {}
+table GetStatus_Rsp {
+  enabled    : bool;
+  time_step  : uint32;
+  queue_info : [QueueInfo] (required);
+}
+
+// ===============================================
+// Test results
+// ===============================================
+
+table EvalResult {
+  evaluation_idx : uint32;          // The index within RFT.Test.Prepare() 'evaluations' vector.
+  current        : Scalar;          // Evaluation result for current time step.
+  mean           : Scalar;          // Calculated mean including this time step.
+  criteria_err   : bool    = false; // Error for this time step
+}
+
+table ChannelResult {
+  tx_channel_id : ChannelId     (required);
+  tx_msg        : [uint8]       (required);
+  rx_msg        : [uint8]       (required);
+  tx_timestamp  : uint32;                   // When transmission is started
+  rx_timestamp  : uint32;                   // When the first byte is received. Invalid if 'rx_msg' is empty.
+  eval          : [EvalResult];             // Vector for current evaluation results.
+  criteria_err  : bool          = false;    // Logical-AND of all eval[N].criteria_err
+  timeout_err   : bool          = false;
+  crc_err       : bool          = false;
+  nan_err       : bool          = false;    // NaN or Inf error.
+  is_last       : bool          = false;    // true for the last entry.
+}
+
+//
+// When 'is_last' of all elements are true, the test is over.
+// If a channel is finished early, it will no longer supply an element.
+//
+table Result {
+  channel_results : [ChannelResult] (required);
+  time_step       : uint32;
+}
+
+// =============================================================================
+
+// ===============================================
+// Logging
+// ===============================================
+
+namespace RFT;
+
+union LogUnion {
+  result : RFT.Test.Result, // Channel results for each time step
+  str    : string,          // For other events
+}
+
+table Log {
+  timestamp : uint32;              // When this message is initialized
+  counter   : uint32;              // Increments with each log.
+  log       : LogUnion (required);
+}
+
+// ===============================================
+// Request/Response
+// ===============================================
+
+union RequestUnion {
+  channel_configure   : RFT.Channel.Configure_Req,
+  channel_transfer    : RFT.Channel.Transfer_Req,
+  test_prepare        : RFT.Test.Prepare_Req,
+  test_add_directives : RFT.Test.AddDirectives_Req,
+  test_enable         : RFT.Test.Enable_Req,
+  test_get_status     : RFT.Test.GetStatus_Req,
+}
+
+union ResponseUnion {
+  channel_configure   : RFT.Channel.Configure_Rsp,
+  channel_transfer    : RFT.Channel.Transfer_Rsp,
+  test_prepare        : RFT.Test.Prepare_Rsp,
+  test_add_directives : RFT.Test.AddDirectives_Rsp,
+  test_enable         : RFT.Test.Enable_Rsp,
+  test_get_status     : RFT.Test.GetStatus_Rsp,
+  error               : RFT.Error_Rsp,
+}
+
+table Request {
+  r: RequestUnion (required);
+}
+
+table Response {
+  status : Status; // TODO: might embed the field to *_Rsp or to Error_Rsp only
+  r      : ResponseUnion (required);
+}
+
+// TODO: if status is embedded in *_Rsp
+// table Requests {
+//   rs: [RequestUnion];
+// }
+//
+// table Responses {
+//   rs: [ResponseUnion];
+// }
+//
+// table Logs {
+//   logs : [LogUnion];
+// }
+
+
+// ===============================================
+// Service
+// ===============================================
+
+namespace RFT;
+
+rpc_service RPU {
+  Execute(RFT.Request) : RFT.Response;
+}
+
+rpc_service Channel {
+  Configure(RFT.Channel.Configure_Req) : RFT.Channel.Configure_Rsp;
+  Transfer(RFT.Channel.Transfer_Req)   : RFT.Channel.Transfer_Rsp;
+}
+
+rpc_service Test {
+  Prepare(RFT.Test.Prepare_Req)             : RFT.Test.Prepare_Rsp;
+  AddDirectives(RFT.Test.AddDirectives_Req) : RFT.Test.AddDirectives_Rsp;
+  Enable(RFT.Test.Enable_Req)               : RFT.Test.Enable_Rsp;
+  GetStatus(RFT.Test.GetStatus_Req)         : RFT.Test.GetStatus_Rsp;
+}
+
+// root_type Empty;

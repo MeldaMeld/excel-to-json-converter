@@ -1,43 +1,49 @@
-using Avalonia.Controls;
-using ClosedXML.Excel; //Excel dosyasýný açýp hücre okumak
+ï»¿using Avalonia.Controls;
+using ClosedXML.Excel; //Excel dosyasï¿½nï¿½ aï¿½ï¿½p hï¿½cre okumak
 using DocumentFormat.OpenXml.VariantTypes;
-using System; //temel türler tipler, exception vs.
+using System; //temel tï¿½rler tipler, exception vs.
 using System.Collections.Generic;
-using System.IO; //dosya yolu iþlemleri, dosyaya yazma
+using System.Data;
+using System.Diagnostics;
+using System.IO; //dosya yolu iï¿½lemleri, dosyaya yazma
 using System.Linq;
-using System.Text.Json; //C# objesini JSON’a çevirme
+using System.Text;
+using System.Text.Json; //C# objesini JSONï¿½a ï¿½evirme
+using System.Diagnostics;
+using System.Text;
 
 namespace ExcelToJsonConverter.App;
 
-public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn nedeni, hem UI hem de kod tarafý farklý dosyalarda olup sonra birleþmesidir.
+public partial class MainWindow : Window //bizim ana sï¿½nï¿½fï¿½mï¿½z partial olmasï¿½nï¿½n nedeni, hem UI hem de kod tarafï¿½ farklï¿½ dosyalarda olup sonra birleï¿½mesidir.
 {
     public MainWindow()
     {
-        InitializeComponent(); //XAML'de çizdiðim UI'yý yükler.
-        BtnPickExcel.Click += BtnPickExcel_Click; //BtnPickExcel butonuna týklanýrsa, BtnPickExcel_Click fonksiyonunu çalýþtýr.
+        InitializeComponent(); //XAML'de ï¿½izdiï¿½im UI'yï¿½ yï¿½kler.
+        BtnPickExcel.Click += BtnPickExcel_Click; //BtnPickExcel butonuna tï¿½klanï¿½rsa, BtnPickExcel_Click fonksiyonunu ï¿½alï¿½ï¿½tï¿½r.
         CmbType.SelectionChanged += CmbType_SelectionChanged;
         BtnConvert.Click += BtnConvert_Click;
+        BtnUpdate.Click += BtnUpdate_Click;
     }
-    private async void BtnPickExcel_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e) //async çünkü kullanýcýdan dosya seçmesini bekleyen bir iþlem var (dialog).
+    private async void BtnPickExcel_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e) //async ï¿½ï¿½nkï¿½ kullanï¿½cï¿½dan dosya seï¿½mesini bekleyen bir iï¿½lem var (dialog).
     {
-        var dlg = new OpenFileDialog //Dosya seçme penceresi oluþturuyor
+        var dlg = new OpenFileDialog //Dosya seï¿½me penceresi oluï¿½turuyor
         {
-            Title = "Excel dosyasý seç",
-            AllowMultiple = false, //kullanýcý sadece 1 dosya seçebilsin.
+            Title = "Excel dosyasi sec",
+            AllowMultiple = false, //kullanï¿½cï¿½ sadece 1 dosya seï¿½ebilsin.
             Filters =
         {
             new FileDialogFilter { Name = "Excel", Extensions = { "xlsx", "xlsm" } }
         }
         };
 
-        var result = await dlg.ShowAsync(this); //Pencereyi açýp kullanýcýdan seçim bekliyor.
+        var result = await dlg.ShowAsync(this); //Pencereyi aï¿½ï¿½p kullanï¿½cï¿½dan seï¿½im bekliyor.
         if (result is { Length: > 0 })
-            TxtExcelPath.Text = result[0]; //Seçilen dosyayý ekrana yaz.
+            TxtExcelPath.Text = result[0]; //Seï¿½ilen dosyayï¿½ ekrana yaz.
     }
 
     private void CmbType_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        var selected = //kullanýcý hangi türü seçti.
+        var selected = //kullanici hangi turu secti.
             (CmbType.SelectedItem as ComboBoxItem)?.Content?.ToString()
             ?? "unknown";
 
@@ -48,7 +54,7 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
                 "Kolonlar:\n" +
                 "- tx_channel_id\n" +
                 "- rx_msg_length\n" +
-                "- tx_msg (virgüllü ör.: 15,61,62)\n" +
+                "- tx_msg (virgÃ¼llÃ¼ Ã¶rn.: 15, 61, 62)\n" +
                 "- timeout_usec",
 
             "channel_configure" =>
@@ -70,13 +76,15 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
                 "- tx_channel_id\n" +
                 "- rx_msg_length\n" +
                 "- step_count\n" +
-                "- tx_msg (virgüllü: 10,21,22,23)\n" +
-                "Not:\n" +
-                "- Her satýr 1 directive satýrýdýr.\n" +
-                "- Ayný tx_channel_id tekrar edebilir; JSON'da tek baþlýk altýnda gruplanýr.",
+                "- tx_msg (virgÃ¼llÃ¼: 10,21,22,23)\n\n" +
+                "Notlar:\n" +
+                "- Her satÄ±r 1 directive tanÄ±mÄ±dÄ±r.\n" +
+                "- AynÄ± tx_channel_id birden fazla kez tekrar edebilir;\n" +
+                "  JSON Ã§Ä±ktÄ±sÄ±nda tek baÅŸlÄ±k altÄ±nda gruplanÄ±r.",
 
             "test_prepare" =>
-                "Sheet'ler:\n" +
+                "Sheet'ler:\n\n" +
+
                 "1) Test_Prepare_General\n" +
                 "   - period_usec\n\n" +
 
@@ -85,74 +93,81 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
                 "   - offset\n" +
                 "   - scalar_type (U32 / F32 / U8)\n" +
                 "   - big_endian (TRUE / FALSE)\n" +
-                "   Not: Her satýr 1 field tanýmýdýr.\n\n" +
+                "   Not: Her satÄ±r 1 field tanÄ±mÄ±dÄ±r.\n\n" +
 
                 "3) Test_Prepare_Bindings\n" +
                 "   - tx_channel_id\n" +
                 "   - arg_name (response1, command2, ...)\n" +
                 "   - arg_index\n" +
-                "   Not: Ayný tx_channel_id tekrar edebilir; JSON'da gruplanýr.\n\n" +
+                "   Not: AynÄ± tx_channel_id tekrar edebilir;\n" +
+                "   JSON Ã§Ä±ktÄ±sÄ±nda gruplanÄ±r.\n\n" +
 
                 "4) Test_Prepare_Evaluations\n" +
                 "   - evaluation_idx\n" +
-                "   - instructions (virgüllü: 9,4,Sub)\n" +
-                "   - instructions_type (virgüllü: load_field,binary_op)\n" +
-                "   Not: instructions ve instructions_type sýralarý birebir eþleþmelidir.\n\n" +
+                "   - instructions (virgÃ¼llÃ¼: 9,4,Sub)\n" +
+                "   - instructions_type (virgÃ¼llÃ¼: load_field,binary_op)\n" +
+                "   Not: instructions ve instructions_type\n" +
+                "   eleman sayÄ±larÄ± birebir eÅŸleÅŸmelidir.\n\n" +
 
                 "5) Test_Prepare_Criteria\n" +
                 "   - tx_channel_id\n" +
                 "   - evaluation_idx\n" +
-                "   - comparison_ops (virgüllü: Ge,Le)\n" +
-                "   - comparison_values (virgüllü: 99.5,100.5)\n" +
+                "   - comparison_ops (virgÃ¼llÃ¼: Ge,Le)\n" +
+                "   - comparison_values (virgÃ¼llÃ¼: 99.5,100.5)\n" +
                 "   - invert_logic (TRUE / FALSE)\n" +
                 "   - start_time_step\n" +
-                "   - end_time_step\n" +
-                "Not: Her satýr 1 kriterdir.",
+                "   - end_time_step\n\n" +
+                "Not: Her satÄ±r 1 kriter tanÄ±mÄ±dÄ±r.",
         };
 
     }
 
     private void BtnConvert_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        try //try-catch: Excel dosyasý bozuk olabilir ya da kullanýcý yanlýþ seçebilir. Eðer hata olursa program çökmesin diye, hata mesajýný ekrana yazdýrýyor.
+        try //try-catch: Excel dosyasi bozuk olabilir ya da kullanici yanlÄ±ÅŸ seÃ§ebilir. EÄŸer hata olursa program Ã§Ã¶kmesin diye, hata mesajÄ±nÄ± ekrana yazdÄ±rÄ±yor.
         {
             SuccessPanel.IsVisible = false;
             ErrorPanel.IsVisible = false;
 
             TxtResultPath.Text = "";
             TxtError.Text = "";
-            var selectedType = //kullanýcýnýn seçtiði türü alýyoruz.
+            var selectedType = //kullanÄ±cÄ±nÄ±n seÃ§tÄ±ÄŸi tÃ¼rÃ¼ alÄ±yoruz. 
                 (CmbType.SelectedItem as ComboBoxItem)?.Content?.ToString()
                 ?? "unknown";
 
-            var excelPath = TxtExcelPath.Text ?? ""; //excel dosyasý seçilmiþ mi?
+            var excelPath = TxtExcelPath.Text ?? ""; //excel dosyasi secilmis mi?
 
-            if (string.IsNullOrWhiteSpace(excelPath) || excelPath == "(Excel Seçilmedi)")
+            if (string.IsNullOrWhiteSpace(excelPath) || excelPath == "(Excel Secilmedi)")
             {
-                TxtPreview.Text = "Önce Excel dosyasý seçmelisin.";
-                SuccessPanel.IsVisible = false;     // önemli
+                TxtPreview.Text = "ï¿½nce Excel dosyasi secmelisin.";
+                SuccessPanel.IsVisible = false;     // onemli
                 TxtResultPath.Text = "";            // temizle
                 return;
             }
 
-            string json = selectedType switch //hangi tür seçildiyse onu çalýþtýr.
+            string json = selectedType switch //hangi tur secildiyse onu calistir.
             {
                 "channel_transfer" => ConvertChannelTransferFromExcel(excelPath),
                 "channel_configure" => ConvertChannelConfigureFromExcel(excelPath),
                 "test_add_directives" => ConvertTestAddDirectivesFromExcel(excelPath),
                 "test_prepare" => ConvertTestPrepareFromExcel(excelPath),
-                _ => throw new Exception($"Bilinmeyen tür: {selectedType}")
+                _ => throw new Exception($"Bilinmeyen tï¿½r: {selectedType}")
             };
 
-            var directory = Path.GetDirectoryName(excelPath) ?? Environment.CurrentDirectory; //excel dosyasý nerede duruyor?
-            var fileNameWithoutExt = Path.GetFileNameWithoutExtension(excelPath); //excel dosyasýnýn adý ne?
-            var jsonPath = Path.Combine(directory, fileNameWithoutExt + ".json"); //ayný klasöre ayný isimle ama formatý .json yap.
+            var directory = Path.GetDirectoryName(excelPath) ?? Environment.CurrentDirectory;
+            var baseName = Path.GetFileNameWithoutExtension(excelPath);
 
-            File.WriteAllText(jsonPath, json); //json metnini al ve jsonPath konumuna dosya olarak kaydet.
+            var jsonPath = Path.Combine(directory, $"{baseName}.json");
+            File.WriteAllText(jsonPath, json, Encoding.UTF8);
+            //json metnini al ve jsonPath konumuna dosya olarak kaydet.
             TxtPreview.Text = json;   // sadece JSON
 
-            TxtResultPath.Text = jsonPath;
             SuccessPanel.IsVisible = true;
+            ErrorPanel.IsVisible = false;
+
+            TxtSuccessTitle.Text = "JSON baÅŸarÄ±yla oluÅŸturuldu:";
+            TxtResultPath.Text = jsonPath;
+
         }
         catch (Exception ex)
         {
@@ -166,49 +181,176 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
     }
 
 
-    private static string ConvertChannelTransferFromExcel(string excelPath) // excel dosyasýný aç, channel transfer dosyasýný oku, her satýrý JSON'a çevir, hepsini liste yap ve JSON metni olarak geri döndür.
+    private void BtnUpdate_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        using var wb = new XLWorkbook(excelPath); // excel dosyasýný aç, iþin bitince kapat(using).
-        var ws = wb.Worksheet("Channel_Transfer"); // Channel_Transfer isimli sayfayý bul ve onu okuyacaðým.
+     try
+    {
+        SuccessPanel.IsVisible = false;
+        ErrorPanel.IsVisible = false;
+        TxtError.Text = ""; //butona basinca eski hata ya da success mesajlari siliniyor.
+        TxtResultPath.Text = "";
 
-        int Col(string header) //kolonlarýn yeri sabit olmayabilir diye baþlýktan buluruz.
+        var selectedType =
+            (CmbType.SelectedItem as ComboBoxItem)?.Content?.ToString()
+            ?? "unknown";
+
+        var excelPath = TxtExcelPath.Text ?? "";
+        if (string.IsNullOrWhiteSpace(excelPath) || excelPath == "(Excel SeÃ§ilmedi)")
+            throw new Exception("Ã–nce Excel dosyasÄ± seÃ§melisin.");
+
+        // 1) JSON Ã¼ret (senin mevcut fonksiyonlarÄ±n)
+        string json = selectedType switch
         {
-            var headerRow = ws.Row(1); //baþlýk satýrýný al (1.satýr baþlýklar)
-            var cell = headerRow.CellsUsed() //baþlýklarýn içinde aradýðýný bul.
-                .FirstOrDefault(c => string.Equals(c.GetString().Trim(), header, StringComparison.OrdinalIgnoreCase));
+            "channel_transfer" => ConvertChannelTransferFromExcel(excelPath),
+            "channel_configure" => ConvertChannelConfigureFromExcel(excelPath),
+            "test_add_directives" => ConvertTestAddDirectivesFromExcel(excelPath),
+            "test_prepare" => ConvertTestPrepareFromExcel(excelPath),
+            _ => throw new Exception($"Bilinmeyen tÃ¼r: {selectedType}")
+        };
 
-            if (cell == null) //bulamazsan hata ver.
-                throw new Exception($"Excel'de '{header}' baþlýðý bulunamadý (Sheet: Channel_Transfer).");
+        // 2) Proje root + out
+        // Projede her ÅŸey projectRoot/out iÃ§ine dÃ¼ÅŸsÃ¼n diye standart klasÃ¶r belirliyoruz.
+        var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var outDir = Path.Combine(projectRoot, "out");
+        Directory.CreateDirectory(outDir);
 
-            return cell.Address.ColumnNumber; //bulduysa sütun numarasýný döndür.
+            var baseName = Path.GetFileNameWithoutExtension(excelPath);
+            var jsonPath = Path.Combine(outDir, $"{baseName}.json");
+            File.WriteAllText(jsonPath, json, Encoding.UTF8);
+
+            // 3) flatc yollarÄ±, shema ve ftatc var mi kontrol et.
+            var schemaPath = Path.Combine(projectRoot, "schemas", "rft.fbs");
+        if (!File.Exists(schemaPath))
+            throw new Exception($"Åžema bulunamadÄ±: {schemaPath}");
+
+            var flatcPath = Path.Combine(projectRoot, "Tools", "flatbuffers", "win-x64", "flatc.exe");
+
+            if (!File.Exists(flatcPath))
+            throw new Exception($"flatc bulunamadÄ±: {flatcPath}");
+
+            // 4) flatc Ã§alÄ±ÅŸtÄ±r: JSON -> BIN
+            var args = $"--binary --strict-json --root-type RFT.Request -o \"{outDir}\" \"{schemaPath}\" \"{jsonPath}\"";
+
+            var (exitCode, stdout, stderr) = RunProcess(flatcPath, args, projectRoot);
+
+        if (exitCode != 0)
+        {
+            throw new Exception(
+                "flatc hata verdi.\n\n" +
+                $"Komut: {flatcPath} {args}\n\n" +
+                $"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
+            );
+            }
+            var binPath = Path.Combine(outDir, $"{baseName}.bin");
+            // 5) BIN -> JSON (doÄŸrulama)
+            var verifyDir = Path.Combine(outDir, "verify");
+            Directory.CreateDirectory(verifyDir);
+
+            var verifyArgs =
+                $"--json --strict-json --defaults-json --raw-binary " +
+                $"--root-type RFT.Request " +
+                $"-o \"{verifyDir}\" " +
+                $"\"{schemaPath}\" -- \"{binPath}\"";
+
+            var (exit2, out2, err2) = RunProcess(flatcPath, verifyArgs, projectRoot);
+
+            if (exit2 != 0)
+            {
+                throw new Exception(
+                    "BIN -> JSON doÄŸrulama (flatc) hata verdi.\n\n" +
+                    $"Komut:\n{flatcPath} {verifyArgs}\n\n" +
+                    $"ExitCode: {exit2}\n\n" +
+                    $"STDOUT:\n{out2}\n\n" +
+                    $"STDERR:\n{err2}"
+                );
+            }
+            var verifyJsonFiles = Directory.GetFiles(verifyDir, "*.json");
+
+            if (verifyJsonFiles.Length == 0)
+                throw new Exception("flatc Ã§alÄ±ÅŸtÄ± ama verify klasÃ¶rÃ¼nde JSON oluÅŸmadÄ±.");
+
+            var verifyJsonPath = verifyJsonFiles[0]; // genelde tek dosya olur
+
+            if (!File.Exists(binPath))
+        throw new Exception($"flatc Ã§alÄ±ÅŸtÄ± ama .bin bulunamadÄ±: {binPath}");
+
+            TxtPreview.Text = json; // istersen verify json'u da gÃ¶sterebilirsin
+
+            SuccessPanel.IsVisible = true;
+            ErrorPanel.IsVisible = false;
+
+            TxtSuccessTitle.Text = "BIN oluÅŸturuldu ve tekrar JSON'a Ã§evrilerek doÄŸrulandÄ±:";
+            TxtResultPath.Text = $"BIN: {binPath}\nVERIFY JSON: {verifyJsonPath}";
+
         }
+        catch (Exception ex)
+    {
+        TxtError.Text = ex.Message;
+        ErrorPanel.IsVisible = true;
+        SuccessPanel.IsVisible = false;
+    }
+}
 
-        // Kolonlarý bir kere bul
-        int cTxChannelId = Col("tx_channel_id"); //excelde bu baþlýklae hangi sütunda onlarý bul ve aklýnda tut.
-        int cRxMsgLength = Col("rx_msg_length");
-        int cTxMsg = Col("tx_msg");
-        int cTimeoutUsec = Col("timeout_usec");
+    private static (int exitCode, string stdout, string stderr) RunProcess(string exe, string args, string workingDir)
+    {
+    var psi = new ProcessStartInfo
+    {
+        FileName = exe,
+        Arguments = args,
+        WorkingDirectory = workingDir,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+        CreateNoWindow = true
+    };
 
-        var results = new System.Collections.Generic.List<object>(); //Her satýrdan bir JSON obje oluþturacaðýz. Hepsini bu listeye atacaðýz.
+    using var p = new Process { StartInfo = psi };
+    p.Start();
 
-        // 2. satýrdan itibaren oku çünkü 1. satýr baþlýklarý içeriyor.
-        for (int row = 2; ; row++)
+    var stdout = p.StandardOutput.ReadToEnd();
+    var stderr = p.StandardError.ReadToEnd();
+
+    p.WaitForExit();
+    return (p.ExitCode, stdout, stderr);
+    }
+
+
+    private static string ConvertChannelTransferFromExcel(string excelPath)
         {
-            var txIdCell = ws.Cell(row, cTxChannelId); // tx_channel_id boþsa (veya satýr tamamen boþsa) dur
-            if (txIdCell.IsEmpty() || string.IsNullOrWhiteSpace(txIdCell.GetString()))
-                break;
+            using var wb = new XLWorkbook(excelPath);
+            var ws = wb.Worksheet("Channel_Transfer");
 
-            int txChannelId = txIdCell.GetValue<int>(); // O satýrdaki deðerleri alýyoruz
+            int Col(string header)
+            {
+                var headerRow = ws.Row(1);
+                var cell = headerRow.CellsUsed()
+                    .FirstOrDefault(c => string.Equals(c.GetString().Trim(), header, StringComparison.OrdinalIgnoreCase));
+                if (cell == null)
+                    throw new Exception($"Excel'de '{header}' baÅŸlÄ±ÄŸÄ± bulunamadÄ± (Sheet: Channel_Transfer).");
+                return cell.Address.ColumnNumber;
+            }
+
+            int cTxChannelId = Col("tx_channel_id");
+            int cRxMsgLength = Col("rx_msg_length");
+            int cTxMsg = Col("tx_msg");
+            int cTimeoutUsec = Col("timeout_usec");
+
+            int row = 2;
+            var txIdCell = ws.Cell(row, cTxChannelId);
+            if (txIdCell.IsEmpty() || string.IsNullOrWhiteSpace(txIdCell.GetString()))
+                throw new Exception("Channel_Transfer sheet iÃ§inde veri bulunamadÄ± (2. satÄ±r).");
+
+            int txChannelId = txIdCell.GetValue<int>();
             int rxMsgLength = ws.Cell(row, cRxMsgLength).GetValue<int>();
             string txMsgRaw = ws.Cell(row, cTxMsg).GetString();
             int timeoutUsec = ws.Cell(row, cTimeoutUsec).GetValue<int>();
 
-            var txMsg = txMsgRaw //"15,61,62" yazýsýný listeye çeviriyoruz
+            var txMsg = txMsgRaw
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(int.Parse)
                 .ToArray();
 
-            var payload = new //O satýr için JSON objesini kuruyoruz
+            var payload = new
             {
                 r_type = "channel_transfer",
                 r = new
@@ -220,36 +362,28 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
                 }
             };
 
-            results.Add(payload); //Listeye ekliyoruz.
+            return JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
         }
 
-        if (results.Count == 0) //Hiç satýr yoksa hata ver.
-            throw new Exception("Channel_Transfer sheet içinde hiç veri satýrý bulunamadý (2. satýrdan itibaren).");
-
-        //Listeyi JSON metnine çevirip geri döndür
-        return JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true });
-    }
 
     private static string ConvertChannelConfigureFromExcel(string excelPath)
     {
         using var wb = new XLWorkbook(excelPath);
         var ws = wb.Worksheet("Channel_Configure");
 
-        int Col(string header) //kolonlarýn yerini baþlýktan bulmak için kullanýlan fonksiyon.
+        int Col(string header)
         {
-            var headerRow = ws.Row(1); //Excel’in 1. satýrý baþlýklar satýrý kabul edilir.
+            var headerRow = ws.Row(1);
             var cell = headerRow.CellsUsed()
                 .FirstOrDefault(c => string.Equals(c.GetString().Trim(), header, StringComparison.OrdinalIgnoreCase));
-
             if (cell == null)
-                throw new Exception($"Excel'de '{header}' baþlýðý bulunamadý (Sheet: Channel_Configure).");
-
-            return cell.Address.ColumnNumber; //Bulursa sütun numarasýný döndürüyor
+                throw new Exception($"Excel'de '{header}' baÅŸlÄ±ÄŸÄ± bulunamadÄ± (Sheet: Channel_Configure).");
+            return cell.Address.ColumnNumber;
         }
-        //excelde hangi baþlýk hangi sütunda?
+
         int cChannelId = Col("channel_id");
         int cRxChannelId = Col("rx_channel_id");
-        int cType = Col("interface_config_type");
+        int cType = Col("interface_config_type");   // rs485 / udp
         int cBaud = Col("baud_rate");
         int cStop = Col("stop_bit");
         int cDataBits = Col("data_bits");
@@ -257,32 +391,46 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
         int cTermination = Col("termination");
         int cTimeout = Col("timeout_usec");
 
-        var configs = new System.Collections.Generic.List<object>(); //JSON’a gidecek “config”leri toplayacaðýmýz liste
-
-        for (int row = 2; ; row++) //2. satýrdan itibaren satýr satýr gez. ;; kýsmý sonsuz döngü demek.
+        static string MapParity(string p)
         {
-            var chCell = ws.Cell(row, cChannelId); //satýr boþsa dur!!
+            // DirektÃ¶r Ã¶rneÄŸine uyalÄ±m: NoParity / Even / Odd / Space / Mark
+            // Excel bazen EvenParity/OddParity gibi gelebilir â†’ normalize edelim
+            p = (p ?? "").Trim();
+            return p switch
+            {
+                "EvenParity" => "Even",
+                "OddParity" => "Odd",
+                _ => p
+            };
+        }
+
+        var configs = new List<object>();
+
+        for (int row = 2; ; row++)
+        {
+            var chCell = ws.Cell(row, cChannelId);
             if (chCell.IsEmpty() || string.IsNullOrWhiteSpace(chCell.GetString()))
                 break;
 
-            //satýrlardaki deðerleri tek tek deðiþkenlere kaydediyoruz.
             int channelId = chCell.GetValue<int>();
             int rxChannelId = ws.Cell(row, cRxChannelId).GetValue<int>();
 
-            string ifaceType = ws.Cell(row, cType).GetString();
-            string baudRate = ws.Cell(row, cBaud).GetString();
-            string stopBit = ws.Cell(row, cStop).GetString();
-            string dataBits = ws.Cell(row, cDataBits).GetString();
-            string parity = ws.Cell(row, cParity).GetString();
-
+            string ifaceType = ws.Cell(row, cType).GetString().Trim(); // "rs485" / "udp"
+            string baudRate = ws.Cell(row, cBaud).GetString().Trim();
+            string stopBit = ws.Cell(row, cStop).GetString().Trim();
+            string dataBits = ws.Cell(row, cDataBits).GetString().Trim();
+            string parity = MapParity(ws.Cell(row, cParity).GetString());
             bool termination = ws.Cell(row, cTermination).GetValue<bool>();
             int timeoutUsec = ws.Cell(row, cTimeout).GetValue<int>();
 
-            var config = new //C#’ta hýzlýca JSON’a benzeyen bir nesne oluþturur, hedef þablon oluþturulur.
+            if (!ifaceType.Equals("rs485", StringComparison.OrdinalIgnoreCase))
+                throw new Exception($"Åžu an sadece rs485 destekleniyor. interface_config_type: '{ifaceType}'");
+
+            var config = new
             {
                 channel_id = new { id = channelId },
                 rx_channel_id = new { id = rxChannelId },
-                interface_config_type = ifaceType,
+                interface_config_type = "rs485",
                 interface_config = new
                 {
                     baud_rate = baudRate,
@@ -294,23 +442,22 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
                 timeout_usec = timeoutUsec
             };
 
-            configs.Add(config); //Excel’de her satýr okunduðunda bir config oluþur ve liste büyür.
+            configs.Add(config);
         }
 
-        if (configs.Count == 0) //Excel’de hiç veri yoksa hata veriyor. Sheet boþsa ya da yanlýþ excel seçilmiþse hata verir.
-            throw new Exception("Channel_Configure sheet içinde hiç veri satýrý bulunamadý (2. satýrdan itibaren).");
+        if (configs.Count == 0)
+            throw new Exception("Channel_Configure sheet iÃ§inde hiÃ§ veri satÄ±rÄ± bulunamadÄ± (2. satÄ±rdan itibaren).");
 
-        var payload = new //en son dýþ JSON'u kuruyoruz. 
+        var payload = new
         {
             r_type = "channel_configure",
-            r = new
-            {
-                configs = configs
-            }
+            r = new { configs }
         };
 
-        return JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }); // JSON metnine çevirip döndürüyor.
+        return JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
     }
+
+
 
     private static string ConvertTestAddDirectivesFromExcel(string excelPath)
     {
@@ -324,7 +471,7 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
                 .FirstOrDefault(c => string.Equals(c.GetString().Trim(), header, StringComparison.OrdinalIgnoreCase));
 
             if (cell == null)
-                throw new Exception($"Excel'de '{header}' baþlýðý bulunamadý (Sheet: Test_AddDirectives).");
+                throw new Exception($"Excel'de '{header}' basligi  bulunamadi (Sheet: Test_AddDirectives).");
 
             return cell.Address.ColumnNumber;
         }
@@ -347,20 +494,20 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
             int stepCount = ws.Cell(row, cStepCount).GetValue<int>();
             string txMsgRaw = ws.Cell(row, cTxMsg).GetString();
 
-            //tx_msg yazýsýný diziye çeviriyoruz
+            //tx_msg yazÄ±sÄ±nÄ± diziye Ã§eviriyoruz
             var txMsg = txMsgRaw
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(int.Parse)
                 .ToArray();
 
-            var channelDirective = new //Tek bir “directive” objesi oluþturuyoruz
+            var channelDirective = new //Tek bir directive objesi oluÅŸturuyoruz
             {
                 tx_msg = txMsg,
                 rx_msg_length = rxMsgLength,
                 step_count = stepCount
             };
 
-            if (!groups.TryGetValue(txChannelId, out var list)) //bu directive'i doðru gruba ekliyruz.
+            if (!groups.TryGetValue(txChannelId, out var list)) //bu directive'i doÄŸru gruba ekliyruz.
             {
                 list = new List<object>();
                 groups[txChannelId] = list;
@@ -369,16 +516,16 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
             list.Add(channelDirective);
         }
 
-        if (groups.Count == 0) //Hiç veri yoksa hata ver
-            throw new Exception("Test_AddDirectives sheet içinde hiç veri satýrý bulunamadý (2. satýrdan itibaren).");
+        if (groups.Count == 0) //Hic veri yoksa hata ver
+            throw new Exception("Test_AddDirectives sheet iï¿½inde hiï¿½ veri satï¿½rï¿½ bulunamadï¿½ (2. satï¿½rdan itibaren).");
 
-        var directives = groups.Select(g => new //Gruplarý JSON formatýna çeviriyoruz
+        var directives = groups.Select(g => new //Gruplari JSON formatina ceviriyoruz
         {
             tx_channel_id = new { id = g.Key },
             channel_directives = g.Value
         }).ToList();
 
-        var payload = new //En dýþ JSON'u oluþturuyoruz.
+        var payload = new //En dis JSON'u olusturuyoruz.
         {
             r_type = "test_add_directives",
             r = new
@@ -394,27 +541,27 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
     {
         using var wb = new XLWorkbook(excelPath);
 
-        static string CellStr(IXLWorksheet ws, int row, int col) => ws.Cell(row, col).GetString().Trim(); //excel hücresini string alýr.
-        static bool IsRowEmpty(IXLWorksheet ws, int row, int keyCol) // Bir satýrýn bitip bitmediðini anlamak için
+        static string CellStr(IXLWorksheet ws, int row, int col) => ws.Cell(row, col).GetString().Trim(); //excel hï¿½cresini string alï¿½r.
+        static bool IsRowEmpty(IXLWorksheet ws, int row, int keyCol) // Bir satï¿½rï¿½n bitip bitmediï¿½ini anlamak iï¿½in
         {
             var c = ws.Cell(row, keyCol);
             return c.IsEmpty() || string.IsNullOrWhiteSpace(c.GetString());
         }
 
-        static object WrapX(object v) => new { x = v }; //Formatýn istediði þu yapýyý üretmek için
+        static object WrapX(object v) => new { x = v }; //Formatï¿½n istediï¿½i ï¿½u yapï¿½yï¿½ ï¿½retmek iï¿½in
 
         static string[] SplitCsv(string s) =>
             s.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         static int[] ParseIntCsv(string s) => SplitCsv(s).Select(int.Parse).ToArray();
 
-        static (List<string> types, List<object> instr) ParseInstructions(string instructionsCsv, string typesCsv) //Excel’de evaluations için 2 kolon var, bu da ikisinin eleman sayýsý eþit mi ona bakýyor.
+        static (List<string> types, List<object> instr) ParseInstructions(string instructionsCsv, string typesCsv) //Excelï¿½de evaluations iï¿½in 2 kolon var, bu da ikisinin eleman sayï¿½sï¿½ eï¿½it mi ona bakï¿½yor.
         {
             var types = SplitCsv(typesCsv).ToList();
             var ins = SplitCsv(instructionsCsv);
 
             if (types.Count != ins.Length)
-                throw new Exception("Evaluations: instructions ve instructions_type adetleri eþleþmiyor.");
+                throw new Exception("Evaluations: instructions ve instructions_type adetleri eï¿½leï¿½miyor.");
 
             var instructions = new List<object>();
 
@@ -429,9 +576,9 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
                 }
                 else
                 {
-                    // load_field gibi durumlarda { "x": 4 } token sayý olmalý
+                    // load_field gibi durumlarda { "x": 4 } token sayï¿½ olmalï¿½
                     if (!int.TryParse(token, out int n))
-                        throw new Exception($"Evaluations: '{t}' için sayý bekleniyordu ama '{token}' geldi.");
+                        throw new Exception($"Evaluations: '{t}' iï¿½in sayï¿½ bekleniyordu ama '{token}' geldi.");
                     instructions.Add(new { x = n });
                 }
             }
@@ -439,16 +586,16 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
             return (types, instructions);
         }
 
-        // 1. period_usec Deðeri Bulunur Yazdýrýlýr
+        // 1. period_usec DeÄŸeri Bulunur YazdÄ±rÄ±lÄ±r.
         // "period_usec": 1000
         var wsGeneral = wb.Worksheet("Test_Prepare_General");
         int periodUsec = wsGeneral.Cell(2, 1).GetValue<int>();
 
-        // 2. Fields Okuma Alaný
+        // 2. Fields Okuma Alanï¿½
         var wsFields = wb.Worksheet("Test_Prepare_Fields");
         var fields = new List<object>();
 
-        // Fields içindekiler: field_source, offset, scalar_type, big_endian
+        // Fields iï¿½indekiler: field_source, offset, scalar_type, big_endian
         /*{
         "field_source": "Tx",
         "offset": 60,
@@ -472,11 +619,11 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
         }
 
         if (fields.Count == 0)
-            throw new Exception("Test_Prepare_Fields içinde hiç satýr yok.");
+            throw new Exception("Test_Prepare_Fields iï¿½inde hiï¿½ satï¿½r yok.");
 
-        // 3.Bindings Okuma Alaný
+        // 3.Bindings Okuma Alanï¿½
         var wsBindings = wb.Worksheet("Test_Prepare_Bindings");
-        // Kolonlarý: tx_channel_id, arg_name, arg_index
+        // Kolonlarï¿½: tx_channel_id, arg_name, arg_index
         var bindGroups = new Dictionary<int, Dictionary<string, int>>();
 
         for (int row = 2; !IsRowEmpty(wsBindings, row, 1); row++)
@@ -491,7 +638,7 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
                 bindGroups[txId] = map;
             }
 
-            // Ayný isim tekrar gelirse üstüne yazar
+            // Ayni isim tekrar gelirse ustune yazar
             map[argName] = argIndex;
         }
 
@@ -501,7 +648,7 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
             arg_indices = g.Value
         }).ToList();
 
-        // 4. Evaluations Okuma Alaný
+        // 4. Evaluations Okuma Alani
         var wsEval = wb.Worksheet("Test_Prepare_Evaluations");
         // Kolonlar: evaluation_idx, instructions, instructions_type
         var evaluations = new List<object>();
@@ -524,7 +671,7 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
             });
         }
 
-        // 5. Criteria Okuma Alaný 
+        // 5. Criteria Okuma Alani 
         var wsCrit = wb.Worksheet("Test_Prepare_Criteria");
         // Kolonlar: tx_channel_id, evaluation_idx, comparison_ops, comparison_values, invert_logic, start_time_step, end_time_step
         var critGroups = new Dictionary<int, List<object>>();
@@ -543,7 +690,7 @@ public partial class MainWindow : Window //bizim ana sýnýfýmýz partial olmasýnýn
             var vals = SplitCsv(valuesCsv).Select(s => double.Parse(s, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
 
             if (ops.Length != vals.Length)
-                throw new Exception("Criteria: comparison_ops ve comparison_values adetleri eþleþmiyor.");
+                throw new Exception("Criteria: comparison_ops ve comparison_values adetleri eï¿½leï¿½miyor.");
 
             var comparisons = new List<object>();
             for (int i = 0; i < ops.Length; i++)

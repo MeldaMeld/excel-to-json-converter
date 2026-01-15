@@ -147,7 +147,7 @@
 								<ScrollViewer Grid.Row="1"
 											  VerticalScrollBarVisibility="Auto"
 											  HorizontalScrollBarVisibility="Disabled"
-											  MaxHeight="320">
+											  MaxHeight="250">
 									<TextBlock Name="TxtExpectedFormat"
 											   TextWrapping="Wrap"
 											   Text="(Tür seçince burada beklenen sheet ve kolonlar görünecek)"/>
@@ -168,6 +168,17 @@
 									HorizontalContentAlignment="Center"
 									VerticalContentAlignment="Center"
 									Content="Convert"/>
+							
+							<Button Name="BtnUpdate"
+									Background="{StaticResource DeicoBlueBrush}"
+									Foreground="White"
+									CornerRadius="6"
+									Padding="12"
+									FontWeight="Bold"
+									HorizontalAlignment="Stretch"
+									HorizontalContentAlignment="Center"
+									VerticalContentAlignment="Center"
+									Content="JSON → BIN (Update)"/>
 
 							<Border Name="SuccessPanel"
 									IsVisible="False"
@@ -186,7 +197,8 @@
 											  VerticalAlignment="Top"/>
 
 									<TextBlock Grid.Row="0" Grid.Column="1"
-											   Text="JSON başarıyla oluşturuldu:"
+											   Name="TxtSuccessTitle"
+											   Text=""
 											   Foreground="#137333"
 											   FontWeight="Bold"
 											   FontSize="13"/>

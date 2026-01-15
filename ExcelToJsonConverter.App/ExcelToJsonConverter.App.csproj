@@ -20,4 +20,22 @@
     <PackageReference Include="ClosedXML" Version="0.105.0" />  
     <AvaloniaResource Include="Assets\**\*.*" />
   </ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\Tools\flatbuffers\win-x64\flatc.exe">
+			<Link>Tools\flatbuffers\win-x64\flatc.exe</Link>
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+
+		<None Include="..\Schemas\RFT.fbs">
+			<Link>Schemas\RFT.fbs</Link>
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<AvaloniaResource Include="Assets\**\*.*" />
+	</ItemGroup>
+
+
 </Project>
