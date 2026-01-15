@@ -1,53 +1,83 @@
-﻿using Avalonia.Controls;
-using ClosedXML.Excel; //Excel dosyas�n� a��p h�cre okumak
-using DocumentFormat.OpenXml.VariantTypes;
-using System; //temel t�rler tipler, exception vs.
+﻿// MainWindow.axaml.cs
+// Amaç:
+// - Kullanıcıdan Excel dosyası seçimini alır.
+// - Seçilen türe göre Excel -> JSON dönüşümü yapar.
+// - JSON -> FlatBuffers BIN dönüşümü (flatc) ve isteğe bağlı doğrulama (BIN -> JSON) adımlarını yönetir.
+
+using Avalonia.Controls;
+using ClosedXML.Excel;           // Excel okuma (sheet/row/cell)
+using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Diagnostics;
-using System.IO; //dosya yolu i�lemleri, dosyaya yazma
+using System.Diagnostics;        // Process çalıştırma (flatc)
+using System.IO;                 // Path, File, Directory işlemleri
 using System.Linq;
-using System.Text;
-using System.Text.Json; //C# objesini JSON�a �evirme
-using System.Diagnostics;
-using System.Text;
+using System.Text;               // Encoding
+using System.Text.Json;          // JSON serialize/deserialize
 
 namespace ExcelToJsonConverter.App;
 
-public partial class MainWindow : Window //bizim ana s�n�f�m�z partial olmas�n�n nedeni, hem UI hem de kod taraf� farkl� dosyalarda olup sonra birle�mesidir.
+// MainWindow:
+// - Uygulamanın ana penceresidir.
+// - UI (XAML) ve davranış (code-behind) kısımlarını birleştirir.
+// - Kullanıcı etkileşimlerini (buton tıklamaları, seçim değişiklikleri)
+//   ilgili event handler'lara yönlendirir.
+public partial class MainWindow : Window
 {
     public MainWindow()
     {
-        InitializeComponent(); //XAML'de �izdi�im UI'y� y�kler.
-        BtnPickExcel.Click += BtnPickExcel_Click; //BtnPickExcel butonuna t�klan�rsa, BtnPickExcel_Click fonksiyonunu �al��t�r.
-        CmbType.SelectionChanged += CmbType_SelectionChanged;
-        BtnConvert.Click += BtnConvert_Click;
-        BtnUpdate.Click += BtnUpdate_Click;
+        // XAML tarafında tanımlanan tüm UI bileşenlerini yükler
+        InitializeComponent();
+
+        // UI event bağlamaları:
+        // Kullanıcının yaptığı işlemler burada ilgili metotlara yönlendirilir.
+        BtnPickExcel.Click += BtnPickExcel_Click;          // Excel dosyası seçimi
+        CmbType.SelectionChanged += CmbType_SelectionChanged; // Dönüşüm tipi seçimi
+        BtnConvert.Click += BtnConvert_Click;              // Excel -> JSON
+        BtnUpdate.Click += BtnUpdate_Click;                // JSON -> BIN + doğrulama
     }
-    private async void BtnPickExcel_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e) //async ��nk� kullan�c�dan dosya se�mesini bekleyen bir i�lem var (dialog).
+
+    // Kullanıcıdan Excel dosyası seçmesini ister.
+    // async kullanılmasının nedeni, dosya seçim dialog'u açıkken
+    // UI thread'in bloklanmamasını sağlamaktır.
+    private async void BtnPickExcel_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var dlg = new OpenFileDialog //Dosya se�me penceresi olu�turuyor
+        // Excel dosyası seçimi için standart dosya dialog'u
+        var dlg = new OpenFileDialog
         {
-            Title = "Excel dosyasi sec",
-            AllowMultiple = false, //kullan�c� sadece 1 dosya se�ebilsin.
+            Title = "Excel dosyası seç",
+            AllowMultiple = false, // Kullanıcı sadece tek bir Excel dosyası seçebilir
             Filters =
         {
-            new FileDialogFilter { Name = "Excel", Extensions = { "xlsx", "xlsm" } }
+            new FileDialogFilter
+            {
+                Name = "Excel",
+                Extensions = { "xlsx", "xlsm" }
+            }
         }
         };
 
-        var result = await dlg.ShowAsync(this); //Pencereyi a��p kullan�c�dan se�im bekliyor.
+        // Dialog'u aç ve kullanıcı seçim yapana kadar bekle
+        var result = await dlg.ShowAsync(this);
+
+        // Kullanıcı bir dosya seçtiyse, seçilen dosyanın yolunu ekranda göster
         if (result is { Length: > 0 })
-            TxtExcelPath.Text = result[0]; //Se�ilen dosyay� ekrana yaz.
+            TxtExcelPath.Text = result[0];
     }
 
+
+    // Dönüşüm tipi ComboBox'ında seçim değiştiğinde tetiklenir.
+    // Seçilen tipe göre, kullanıcıya beklenen Excel sheet ve kolon formatını
+    // açıklayıcı bir metin olarak UI üzerinde gösterir.
+    // Amaç: Kullanıcının yanlış formatta Excel seçmesini önlemek.
     private void CmbType_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        var selected = //kullanici hangi turu secti.
+        // Kullanıcının seçtiği dönüşüm tipi (ComboBox içeriği)
+        var selectedType =
             (CmbType.SelectedItem as ComboBoxItem)?.Content?.ToString()
             ?? "unknown";
 
-        TxtExpectedFormat.Text = selected switch
+        // Seçilen tipe göre beklenen Excel formatını ekranda göster
+        TxtExpectedFormat.Text = selectedType switch
         {
             "channel_transfer" =>
                 "Sheet: Channel_Transfer\n" +
@@ -64,7 +94,7 @@ public partial class MainWindow : Window //bizim ana s�n�f�m�z partial o
                 "- rx_channel_id\n" +
                 "- interface_config_type\n" +
                 "- baud_rate\n" +
-                "- stop_bit\n" +
+                "- stop_bit\nn" +
                 "- data_bits\n" +
                 "- parity\n" +
                 "- termination (TRUE / FALSE)\n" +
@@ -118,131 +148,161 @@ public partial class MainWindow : Window //bizim ana s�n�f�m�z partial o
                 "   - start_time_step\n" +
                 "   - end_time_step\n\n" +
                 "Not: Her satır 1 kriter tanımıdır.",
-        };
 
+            // Beklenmeyen veya boş seçimler için kullanıcıyı yönlendir
+            _ => "Lütfen bir dönüşüm tipi seçiniz."
+        };
     }
 
+
+    // Convert: Seçilen Excel dosyasını, seçilen tipe göre JSON'a dönüştürür.
+    // Çıktı:
+    // - JSON dosyası, Excel dosyasının bulunduğu klasöre <ExcelAdı>.json olarak yazılır.
+    // - JSON metni önizleme alanında (TxtPreview) gösterilir.
     private void BtnConvert_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        try //try-catch: Excel dosyasi bozuk olabilir ya da kullanici yanlış seçebilir. Eğer hata olursa program çökmesin diye, hata mesajını ekrana yazdırıyor.
+        try
         {
+            // UI mesajlarını temizle
             SuccessPanel.IsVisible = false;
             ErrorPanel.IsVisible = false;
-
             TxtResultPath.Text = "";
             TxtError.Text = "";
-            var selectedType = //kullanıcının seçtıği türü alıyoruz. 
+
+            // Kullanıcının seçtiği dönüşüm tipi
+            var selectedType =
                 (CmbType.SelectedItem as ComboBoxItem)?.Content?.ToString()
                 ?? "unknown";
 
-            var excelPath = TxtExcelPath.Text ?? ""; //excel dosyasi secilmis mi?
-
+            // Excel dosyası seçilmiş mi?
+            var excelPath = TxtExcelPath.Text ?? "";
             if (string.IsNullOrWhiteSpace(excelPath) || excelPath == "(Excel Secilmedi)")
             {
-                TxtPreview.Text = "�nce Excel dosyasi secmelisin.";
-                SuccessPanel.IsVisible = false;     // onemli
-                TxtResultPath.Text = "";            // temizle
+                TxtPreview.Text = "Önce Excel dosyası seçmelisin.";
                 return;
             }
 
-            string json = selectedType switch //hangi tur secildiyse onu calistir.
+            // 1) Seçilen tipe göre Excel -> JSON üret
+            string json = selectedType switch
             {
                 "channel_transfer" => ConvertChannelTransferFromExcel(excelPath),
                 "channel_configure" => ConvertChannelConfigureFromExcel(excelPath),
                 "test_add_directives" => ConvertTestAddDirectivesFromExcel(excelPath),
                 "test_prepare" => ConvertTestPrepareFromExcel(excelPath),
-                _ => throw new Exception($"Bilinmeyen t�r: {selectedType}")
+                _ => throw new Exception($"Bilinmeyen tür: {selectedType}")
             };
 
+            // 2) JSON'u Excel dosyasının yanına, aynı adla kaydet (sadece uzantı .json olur)
             var directory = Path.GetDirectoryName(excelPath) ?? Environment.CurrentDirectory;
             var baseName = Path.GetFileNameWithoutExtension(excelPath);
-
             var jsonPath = Path.Combine(directory, $"{baseName}.json");
-            File.WriteAllText(jsonPath, json, Encoding.UTF8);
-            //json metnini al ve jsonPath konumuna dosya olarak kaydet.
-            TxtPreview.Text = json;   // sadece JSON
 
+            File.WriteAllText(jsonPath, json, Encoding.UTF8);
+
+            // 3) UI: önizleme + başarı mesajı
+            TxtPreview.Text = json;
             SuccessPanel.IsVisible = true;
             ErrorPanel.IsVisible = false;
 
             TxtSuccessTitle.Text = "JSON başarıyla oluşturuldu:";
             TxtResultPath.Text = jsonPath;
-
         }
         catch (Exception ex)
         {
+            // UI: hata mesajı
             TxtPreview.Text = $"Hata: {ex.Message}";
-
             TxtError.Text = ex.Message;
-            ErrorPanel.IsVisible = true;
 
+            ErrorPanel.IsVisible = true;
             SuccessPanel.IsVisible = false;
         }
     }
 
 
+    // Update: Seçilen Excel dosyasını seçilen tipe göre JSON'a dönüştürür,
+    // ardından flatc ile JSON -> BIN üretir.
+    // Son olarak round-trip doğrulama için BIN -> JSON (verify) dönüşümünü yapar.
+    //
+    // Çıktılar:
+    // - out/<ExcelAdı>.json
+    // - out/<ExcelAdı>.bin
+    // - out/verify/<...>.json   (flatc çıktı adı değişebilir)
     private void BtnUpdate_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-     try
-    {
-        SuccessPanel.IsVisible = false;
-        ErrorPanel.IsVisible = false;
-        TxtError.Text = ""; //butona basinca eski hata ya da success mesajlari siliniyor.
-        TxtResultPath.Text = "";
-
-        var selectedType =
-            (CmbType.SelectedItem as ComboBoxItem)?.Content?.ToString()
-            ?? "unknown";
-
-        var excelPath = TxtExcelPath.Text ?? "";
-        if (string.IsNullOrWhiteSpace(excelPath) || excelPath == "(Excel Seçilmedi)")
-            throw new Exception("Önce Excel dosyası seçmelisin.");
-
-        // 1) JSON üret (senin mevcut fonksiyonların)
-        string json = selectedType switch
+        try
         {
-            "channel_transfer" => ConvertChannelTransferFromExcel(excelPath),
-            "channel_configure" => ConvertChannelConfigureFromExcel(excelPath),
-            "test_add_directives" => ConvertTestAddDirectivesFromExcel(excelPath),
-            "test_prepare" => ConvertTestPrepareFromExcel(excelPath),
-            _ => throw new Exception($"Bilinmeyen tür: {selectedType}")
-        };
+            // UI mesajlarını temizle
+            SuccessPanel.IsVisible = false;
+            ErrorPanel.IsVisible = false;
+            TxtError.Text = "";
+            TxtResultPath.Text = "";
 
-        // 2) Proje root + out
-        // Projede her şey projectRoot/out içine düşsün diye standart klasör belirliyoruz.
-        var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-        var outDir = Path.Combine(projectRoot, "out");
-        Directory.CreateDirectory(outDir);
+            // Kullanıcının seçtiği dönüşüm tipi
+            var selectedType =
+                (CmbType.SelectedItem as ComboBoxItem)?.Content?.ToString()
+                ?? "unknown";
+
+            // Excel seçilmiş mi?
+            var excelPath = TxtExcelPath.Text ?? "";
+            if (string.IsNullOrWhiteSpace(excelPath) || excelPath == "(Excel Seçilmedi)")
+                throw new Exception("Önce Excel dosyası seçmelisin.");
+
+            // 1) Seçilen tipe göre Excel -> JSON üret
+            string json = selectedType switch
+            {
+                "channel_transfer" => ConvertChannelTransferFromExcel(excelPath),
+                "channel_configure" => ConvertChannelConfigureFromExcel(excelPath),
+                "test_add_directives" => ConvertTestAddDirectivesFromExcel(excelPath),
+                "test_prepare" => ConvertTestPrepareFromExcel(excelPath),
+                _ => throw new Exception($"Bilinmeyen tür: {selectedType}")
+            };
+
+            // 2) Proje kökünü bul ve tüm çıktıları standart olarak out/ klasörüne yaz
+            var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+            var outDir = Path.Combine(projectRoot, "out");
+            Directory.CreateDirectory(outDir);
 
             var baseName = Path.GetFileNameWithoutExtension(excelPath);
+
+            // Excel adı + .json (ekstra suffix eklemeden)
             var jsonPath = Path.Combine(outDir, $"{baseName}.json");
             File.WriteAllText(jsonPath, json, Encoding.UTF8);
 
-            // 3) flatc yolları, shema ve ftatc var mi kontrol et.
+            // 3) flatc ve schema yollarını doğrula
             var schemaPath = Path.Combine(projectRoot, "schemas", "rft.fbs");
-        if (!File.Exists(schemaPath))
-            throw new Exception($"Şema bulunamadı: {schemaPath}");
+            if (!File.Exists(schemaPath))
+                throw new Exception($"Şema bulunamadı: {schemaPath}");
 
             var flatcPath = Path.Combine(projectRoot, "Tools", "flatbuffers", "win-x64", "flatc.exe");
-
             if (!File.Exists(flatcPath))
-            throw new Exception($"flatc bulunamadı: {flatcPath}");
+                throw new Exception($"flatc bulunamadı: {flatcPath}");
 
-            // 4) flatc çalıştır: JSON -> BIN
-            var args = $"--binary --strict-json --root-type RFT.Request -o \"{outDir}\" \"{schemaPath}\" \"{jsonPath}\"";
+            // 4) flatc ile JSON -> BIN üret
+            // - root-type: Schema'daki root_type (RFT.Request) ile aynı olmalı
+            // - strict-json: schema uyumsuzsa hata vererek güvenli dönüşüm sağlar
+            var args =
+                $"--binary --strict-json --root-type RFT.Request " +
+                $"-o \"{outDir}\" \"{schemaPath}\" \"{jsonPath}\"";
 
             var (exitCode, stdout, stderr) = RunProcess(flatcPath, args, projectRoot);
 
-        if (exitCode != 0)
-        {
-            throw new Exception(
-                "flatc hata verdi.\n\n" +
-                $"Komut: {flatcPath} {args}\n\n" +
-                $"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
-            );
+            if (exitCode != 0)
+            {
+                throw new Exception(
+                    "flatc (JSON -> BIN) hata verdi.\n\n" +
+                    $"Komut:\n{flatcPath} {args}\n\n" +
+                    $"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
+                );
             }
+
+            // flatc çıktısı beklenen yerde mi?
             var binPath = Path.Combine(outDir, $"{baseName}.bin");
-            // 5) BIN -> JSON (doğrulama)
+            if (!File.Exists(binPath))
+                throw new Exception($"flatc çalıştı ama .bin bulunamadı: {binPath}");
+
+            // 5) Round-trip doğrulama: BIN -> JSON (verify)
+            // Not: flatc JSON output dosya adını her zaman aynı isimle vermeyebilir;
+            // bu nedenle verify klasöründe oluşan *.json dosyasını arıyoruz.
             var verifyDir = Path.Combine(outDir, "verify");
             Directory.CreateDirectory(verifyDir);
 
@@ -257,133 +317,192 @@ public partial class MainWindow : Window //bizim ana s�n�f�m�z partial o
             if (exit2 != 0)
             {
                 throw new Exception(
-                    "BIN -> JSON doğrulama (flatc) hata verdi.\n\n" +
+                    "flatc (BIN -> JSON verify) hata verdi.\n\n" +
                     $"Komut:\n{flatcPath} {verifyArgs}\n\n" +
                     $"ExitCode: {exit2}\n\n" +
                     $"STDOUT:\n{out2}\n\n" +
                     $"STDERR:\n{err2}"
                 );
             }
-            var verifyJsonFiles = Directory.GetFiles(verifyDir, "*.json");
 
+            // verify klasöründe oluşan JSON'u bul
+            var verifyJsonFiles = Directory.GetFiles(verifyDir, "*.json");
             if (verifyJsonFiles.Length == 0)
                 throw new Exception("flatc çalıştı ama verify klasöründe JSON oluşmadı.");
 
-            var verifyJsonPath = verifyJsonFiles[0]; // genelde tek dosya olur
+            var verifyJsonPath = verifyJsonFiles[0]; // çoğu durumda tek dosya olur
 
-            if (!File.Exists(binPath))
-        throw new Exception($"flatc çalıştı ama .bin bulunamadı: {binPath}");
-
-            TxtPreview.Text = json; // istersen verify json'u da gösterebilirsin
+            // 6) UI: sonuçları göster
+            TxtPreview.Text = json; // İstersen burada verify JSON'u da gösterebilirsin
 
             SuccessPanel.IsVisible = true;
             ErrorPanel.IsVisible = false;
 
             TxtSuccessTitle.Text = "BIN oluşturuldu ve tekrar JSON'a çevrilerek doğrulandı:";
             TxtResultPath.Text = $"BIN: {binPath}\nVERIFY JSON: {verifyJsonPath}";
-
         }
         catch (Exception ex)
-    {
-        TxtError.Text = ex.Message;
-        ErrorPanel.IsVisible = true;
-        SuccessPanel.IsVisible = false;
+        {
+            // UI: hata durumunda kullanıcıya mesaj göster
+            TxtError.Text = ex.Message;
+            ErrorPanel.IsVisible = true;
+            SuccessPanel.IsVisible = false;
+        }
     }
-}
 
+    // Dış bir executable'ı yani flatc.exe çalıştırır ve sonucu döndürür.
     private static (int exitCode, string stdout, string stderr) RunProcess(string exe, string args, string workingDir)
     {
-    var psi = new ProcessStartInfo
-    {
-        FileName = exe,
-        Arguments = args,
-        WorkingDirectory = workingDir,
-        RedirectStandardOutput = true,
-        RedirectStandardError = true,
-        UseShellExecute = false,
-        CreateNoWindow = true
-    };
+        var psi = new ProcessStartInfo
+        {
+            FileName = exe,
+            Arguments = args,
+            WorkingDirectory = workingDir,
 
-    using var p = new Process { StartInfo = psi };
-    p.Start();
+            // Çıktıları yakalamak için yönlendirme (logging/debug için kritik)
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
 
-    var stdout = p.StandardOutput.ReadToEnd();
-    var stderr = p.StandardError.ReadToEnd();
+            // Redirect kullanabilmek için shell kapalı olmalı
+            UseShellExecute = false,
 
-    p.WaitForExit();
-    return (p.ExitCode, stdout, stderr);
+            // Konsol penceresi açmadan çalıştır
+            CreateNoWindow = true
+        };
+
+        using var p = new Process { StartInfo = psi };
+        p.Start();
+
+        // Çıktıları oku (flatc hata/uyarıyı genelde stderr'a basar)
+        var stdout = p.StandardOutput.ReadToEnd();
+        var stderr = p.StandardError.ReadToEnd();
+
+        // İşlem bitene kadar bekle
+        p.WaitForExit();
+
+        return (p.ExitCode, stdout, stderr);
     }
 
+    // Excel'deki "Channel_Transfer" sheet'ini okuyarak channel_transfer isteği için JSON üretir.
+    // Beklenen kolonlar (1. satır header):
+    // - tx_channel_id
+    // - rx_msg_length
+    // - tx_msg (virgülle ayrılmış byte listesi: 15,61,62 gibi)
+    // - timeout_usec
 
+    // - Üretilen JSON, FlatBuffers schema'daki RFT.Request yapısına uygun olacak şekilde hazırlanır.
     private static string ConvertChannelTransferFromExcel(string excelPath)
+    {
+        using var wb = new XLWorkbook(excelPath);
+        var ws = wb.Worksheet("Channel_Transfer");
+
+        // Header satırında (Row 1) kolon başlıklarının yerini bularak
+        // kullanıcı kolon sırasını değiştirse bile doğru hücreleri okumayı sağlar.
+        int Col(string header)
         {
-            using var wb = new XLWorkbook(excelPath);
-            var ws = wb.Worksheet("Channel_Transfer");
+            var headerRow = ws.Row(1);
 
-            int Col(string header)
-            {
-                var headerRow = ws.Row(1);
-                var cell = headerRow.CellsUsed()
-                    .FirstOrDefault(c => string.Equals(c.GetString().Trim(), header, StringComparison.OrdinalIgnoreCase));
-                if (cell == null)
-                    throw new Exception($"Excel'de '{header}' başlığı bulunamadı (Sheet: Channel_Transfer).");
-                return cell.Address.ColumnNumber;
-            }
+            var cell = headerRow.CellsUsed()
+                .FirstOrDefault(c =>
+                    string.Equals(
+                        c.GetString().Trim(),
+                        header,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                );
 
-            int cTxChannelId = Col("tx_channel_id");
-            int cRxMsgLength = Col("rx_msg_length");
-            int cTxMsg = Col("tx_msg");
-            int cTimeoutUsec = Col("timeout_usec");
+            if (cell == null)
+                throw new Exception($"Excel'de '{header}' başlığı bulunamadı (Sheet: Channel_Transfer).");
 
-            int row = 2;
-            var txIdCell = ws.Cell(row, cTxChannelId);
-            if (txIdCell.IsEmpty() || string.IsNullOrWhiteSpace(txIdCell.GetString()))
-                throw new Exception("Channel_Transfer sheet içinde veri bulunamadı (2. satır).");
-
-            int txChannelId = txIdCell.GetValue<int>();
-            int rxMsgLength = ws.Cell(row, cRxMsgLength).GetValue<int>();
-            string txMsgRaw = ws.Cell(row, cTxMsg).GetString();
-            int timeoutUsec = ws.Cell(row, cTimeoutUsec).GetValue<int>();
-
-            var txMsg = txMsgRaw
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(int.Parse)
-                .ToArray();
-
-            var payload = new
-            {
-                r_type = "channel_transfer",
-                r = new
-                {
-                    tx_channel_id = new { id = txChannelId },
-                    rx_msg_length = rxMsgLength,
-                    tx_msg = txMsg,
-                    timeout_usec = timeoutUsec
-                }
-            };
-
-            return JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
+            return cell.Address.ColumnNumber;
         }
 
+        // Gerekli kolon indekslerini bul
+        int cTxChannelId = Col("tx_channel_id");
+        int cRxMsgLength = Col("rx_msg_length");
+        int cTxMsg = Col("tx_msg");
+        int cTimeoutUsec = Col("timeout_usec");
 
+        // Veri okuma başlangıcı (Row 2): Row 1 header kabul edilir
+        int row = 2;
+
+        // Basit veri kontrolü: 2. satırda hiç veri yoksa kullanıcıya anlamlı hata ver
+        var txIdCell = ws.Cell(row, cTxChannelId);
+        if (txIdCell.IsEmpty() || string.IsNullOrWhiteSpace(txIdCell.GetString()))
+            throw new Exception("Channel_Transfer sheet içinde veri bulunamadı (2. satır).");
+
+        // Hücrelerden alanları oku
+        int txChannelId = txIdCell.GetValue<int>();
+        int rxMsgLength = ws.Cell(row, cRxMsgLength).GetValue<int>();
+        string txMsgRaw = ws.Cell(row, cTxMsg).GetString();
+        int timeoutUsec = ws.Cell(row, cTimeoutUsec).GetValue<int>();
+
+        // "15,61,62" gibi bir metni byte/int dizisine çevir
+        var txMsg = txMsgRaw
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(int.Parse)
+            .ToArray();
+
+        // Schema'ya uyumlu request payload:
+        // r_type + r yapısı, seçilen isteğin türünü ve içeriğini taşır.
+        var payload = new
+        {
+            r_type = "channel_transfer",
+            r = new
+            {
+                tx_channel_id = new { id = txChannelId },
+                rx_msg_length = rxMsgLength,
+                tx_msg = txMsg,
+                timeout_usec = timeoutUsec
+            }
+        };
+
+        // JSON'u okunabilir formatta döndür (debug ve inceleme için)
+        return JsonSerializer.Serialize(
+            payload,
+            new JsonSerializerOptions { WriteIndented = true }
+        );
+    }
+
+    // Excel'deki "Channel_Configure" sheet'ini okuyarak channel_configure isteği için JSON üretir.
+    // Beklenen kolonlar (1. satır header):
+    // - channel_id
+    // - rx_channel_id
+    // - interface_config_type (rs485 / udp)
+    // - baud_rate
+    // - stop_bit
+    // - data_bits
+    // - parity
+    // - termination (TRUE / FALSE)
+    // - timeout_usec
     private static string ConvertChannelConfigureFromExcel(string excelPath)
     {
         using var wb = new XLWorkbook(excelPath);
         var ws = wb.Worksheet("Channel_Configure");
 
+        // Header (Row 1) üzerinden kolon indeksini bulur.
+        // Bu sayede Excel'de kolonların sırası değişse bile doğru alanlar okunur.
         int Col(string header)
         {
             var headerRow = ws.Row(1);
             var cell = headerRow.CellsUsed()
-                .FirstOrDefault(c => string.Equals(c.GetString().Trim(), header, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(c =>
+                    string.Equals(
+                        c.GetString().Trim(),
+                        header,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                );
+
             if (cell == null)
                 throw new Exception($"Excel'de '{header}' başlığı bulunamadı (Sheet: Channel_Configure).");
+
             return cell.Address.ColumnNumber;
         }
-
+        // Gerekli kolonları resolve et
         int cChannelId = Col("channel_id");
         int cRxChannelId = Col("rx_channel_id");
-        int cType = Col("interface_config_type");   // rs485 / udp
+        int cType = Col("interface_config_type"); // rs485 / udp
         int cBaud = Col("baud_rate");
         int cStop = Col("stop_bit");
         int cDataBits = Col("data_bits");
@@ -393,9 +512,8 @@ public partial class MainWindow : Window //bizim ana s�n�f�m�z partial o
 
         static string MapParity(string p)
         {
-            // Direktör örneğine uyalım: NoParity / Even / Odd / Space / Mark
-            // Excel bazen EvenParity/OddParity gibi gelebilir → normalize edelim
             p = (p ?? "").Trim();
+
             return p switch
             {
                 "EvenParity" => "Even",
@@ -409,12 +527,14 @@ public partial class MainWindow : Window //bizim ana s�n�f�m�z partial o
         for (int row = 2; ; row++)
         {
             var chCell = ws.Cell(row, cChannelId);
+
             if (chCell.IsEmpty() || string.IsNullOrWhiteSpace(chCell.GetString()))
                 break;
 
             int channelId = chCell.GetValue<int>();
             int rxChannelId = ws.Cell(row, cRxChannelId).GetValue<int>();
 
+            // Interface config alanları
             string ifaceType = ws.Cell(row, cType).GetString().Trim(); // "rs485" / "udp"
             string baudRate = ws.Cell(row, cBaud).GetString().Trim();
             string stopBit = ws.Cell(row, cStop).GetString().Trim();
@@ -426,6 +546,7 @@ public partial class MainWindow : Window //bizim ana s�n�f�m�z partial o
             if (!ifaceType.Equals("rs485", StringComparison.OrdinalIgnoreCase))
                 throw new Exception($"Şu an sadece rs485 destekleniyor. interface_config_type: '{ifaceType}'");
 
+            // Schema'ya uygun config nesnesi oluştur
             var config = new
             {
                 channel_id = new { id = channelId },
@@ -444,19 +565,19 @@ public partial class MainWindow : Window //bizim ana s�n�f�m�z partial o
 
             configs.Add(config);
         }
-
         if (configs.Count == 0)
             throw new Exception("Channel_Configure sheet içinde hiç veri satırı bulunamadı (2. satırdan itibaren).");
 
+        // channel_configure request payload
         var payload = new
         {
             r_type = "channel_configure",
             r = new { configs }
         };
 
+        // JSON'u okunabilir formatta döndür (debug ve inceleme için)
         return JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
     }
-
 
 
     private static string ConvertTestAddDirectivesFromExcel(string excelPath)
@@ -500,14 +621,14 @@ public partial class MainWindow : Window //bizim ana s�n�f�m�z partial o
                 .Select(int.Parse)
                 .ToArray();
 
-            var channelDirective = new //Tek bir directive objesi oluşturuyoruz
+            var channelDirective = new //Tek bir directive objesi oluşturuyoruz.
             {
                 tx_msg = txMsg,
                 rx_msg_length = rxMsgLength,
                 step_count = stepCount
             };
 
-            if (!groups.TryGetValue(txChannelId, out var list)) //bu directive'i doğru gruba ekliyruz.
+            if (!groups.TryGetValue(txChannelId, out var list)) //bu directive'i doğru gruba ekliyoruz..
             {
                 list = new List<object>();
                 groups[txChannelId] = list;
@@ -516,8 +637,8 @@ public partial class MainWindow : Window //bizim ana s�n�f�m�z partial o
             list.Add(channelDirective);
         }
 
-        if (groups.Count == 0) //Hic veri yoksa hata ver
-            throw new Exception("Test_AddDirectives sheet i�inde hi� veri sat�r� bulunamad� (2. sat�rdan itibaren).");
+        if (groups.Count == 0) //Hiç veri yoksa hata verir.
+            throw new Exception("Test_AddDirectives sheet içinde hiç veri satır bulunamadı.");
 
         var directives = groups.Select(g => new //Gruplari JSON formatina ceviriyoruz
         {
@@ -525,7 +646,7 @@ public partial class MainWindow : Window //bizim ana s�n�f�m�z partial o
             channel_directives = g.Value
         }).ToList();
 
-        var payload = new //En dis JSON'u olusturuyoruz.
+        var payload = new //En dış JSON'u oluşturuyoruz.
         {
             r_type = "test_add_directives",
             r = new
@@ -533,7 +654,6 @@ public partial class MainWindow : Window //bizim ana s�n�f�m�z partial o
                 directives = directives
             }
         };
-
         return JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
     }
 
@@ -591,11 +711,11 @@ public partial class MainWindow : Window //bizim ana s�n�f�m�z partial o
         var wsGeneral = wb.Worksheet("Test_Prepare_General");
         int periodUsec = wsGeneral.Cell(2, 1).GetValue<int>();
 
-        // 2. Fields Okuma Alan�
+        // 2. Fields Okuma Alani
         var wsFields = wb.Worksheet("Test_Prepare_Fields");
         var fields = new List<object>();
 
-        // Fields i�indekiler: field_source, offset, scalar_type, big_endian
+        // Fields içindekiler: field_source, offset, scalar_type, big_endian
         /*{
         "field_source": "Tx",
         "offset": 60,
@@ -621,9 +741,9 @@ public partial class MainWindow : Window //bizim ana s�n�f�m�z partial o
         if (fields.Count == 0)
             throw new Exception("Test_Prepare_Fields i�inde hi� sat�r yok.");
 
-        // 3.Bindings Okuma Alan�
+        // 3.Bindings Okuma Alani
         var wsBindings = wb.Worksheet("Test_Prepare_Bindings");
-        // Kolonlar�: tx_channel_id, arg_name, arg_index
+        // Kolonlari: tx_channel_id, arg_name, arg_index
         var bindGroups = new Dictionary<int, Dictionary<string, int>>();
 
         for (int row = 2; !IsRowEmpty(wsBindings, row, 1); row++)
