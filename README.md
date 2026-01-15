@@ -1,37 +1,37 @@
-# Excel ? JSON ? FlatBuffers (.bin) Converter
+# Excel -> JSON -> FlatBuffers (.bin) Converter
 
-## 1. Projenin Amacı
+## 1. Projenin AmacÄ±
 
-Bu proje, belirli bir formatta hazırlanmış **Excel dosyalarından**:
+Bu proje, belirli bir formatta hazÄ±rlanmÄ±ÅŸ **Excel dosyalarÄ±ndan**:
 
-- Seçilen isteğe (request type) uygun **JSON** üretmek
-- Bu JSON’u **FlatBuffers** kullanarak **.bin** formatına çevirmek
-- Üretilen **.bin** dosyasını tekrar **JSON’a çevirerek doğrulamak**
+- SeÃ§ilen isteÄŸe (request type) uygun **JSON** Ã¼retmek
+- Bu JSONâ€™u **FlatBuffers** kullanarak **.bin** formatÄ±na Ã§evirmek
+- Ãœretilen **.bin** dosyasÄ±nÄ± tekrar **JSONâ€™a Ã§evirerek doÄŸrulamak**
 
-amacıyla geliştirilmiştir.
+amacÄ±yla geliÅŸtirilmiÅŸtir.
 
 Bu sayede:
 
-- Konfigürasyon hataları erken aşamada yakalanır
-- FlatBuffers dönüşümünün kayıpsız olduğu garanti edilir
-- Cihaza gönderilecek veriler test edilebilir hale gelir
+- KonfigÃ¼rasyon hatalarÄ± erken aÅŸamada yakalanÄ±r
+- FlatBuffers dÃ¶nÃ¼ÅŸÃ¼mÃ¼nÃ¼n kayÄ±psÄ±z olduÄŸu garanti edilir
+- Cihaza gÃ¶nderilecek veriler test edilebilir hale gelir
 
 ---
 
-## 2. Desteklenen Request Türleri
+## 2. Desteklenen Request TÃ¼rleri
 
-Uygulama şu request türlerini destekler:
+Uygulama ÅŸu request tÃ¼rlerini destekler:
 
 - `channel_transfer`
 - `channel_configure`
 - `test_add_directives`
 - `test_prepare`
 
-> Kullanıcı bir tür seçtiğinde, uygulama **beklenen Excel formatını ekranda açıkça gösterir.**
+> KullanÄ±cÄ± bir tÃ¼r seÃ§tiÄŸinde, uygulama **beklenen Excel formatÄ±nÄ± ekranda aÃ§Ä±kÃ§a gÃ¶sterir.**
 
 ---
 
-## 3. Proje Klasör Yapısı
+## 3. Proje KlasÃ¶r YapÄ±sÄ±
 
 excel-to-json-converter/
 ?
@@ -48,86 +48,86 @@ excel-to-json-converter/
 ? ?? win-x64/
 ? ?? flatc.exe # FlatBuffers compiler
 ?
-?? out/ # Otomatik üretilen çıktılar
-? ?? <ExcelAdı>.json
-? ?? <ExcelAdı>.bin
+?? out/ # Otomatik Ã¼retilen Ã§Ä±ktÄ±lar
+? ?? <ExcelAdÄ±>.json
+? ?? <ExcelAdÄ±>.bin
 ? ?? verify/
-? ?? *.json # BIN ? JSON doğrulama çıktıları
+? ?? *.json # BIN ? JSON doÄŸrulama Ã§Ä±ktÄ±larÄ±
 ?
 ?? README.md
 
-?? **out/** klasörü çıktı klasörüdür, repoya eklenmesi önerilmez.
+?? **out/** klasÃ¶rÃ¼ Ã§Ä±ktÄ± klasÃ¶rÃ¼dÃ¼r, repoya eklenmesi Ã¶nerilmez.
 
 ---
 
 ## 4. Gereksinimler
 
 - Windows
-- .NET SDK (projede kullanılan sürüm)
-- Excel dosyaları (`.xlsx`, `.xlsm`)
+- .NET SDK (projede kullanÄ±lan sÃ¼rÃ¼m)
+- Excel dosyalarÄ± (`.xlsx`, `.xlsm`)
 - FlatBuffers compiler (`flatc.exe`)
 
-Proje içinde: Tools/flatbuffers/win-x64/flatc.exe
+Proje iÃ§inde: Tools/flatbuffers/win-x64/flatc.exe
 
 ---
 
-## 5. Uygulamanın Kullanımı (Adım Adım)
+## 5. UygulamanÄ±n KullanÄ±mÄ± (AdÄ±m AdÄ±m)
 
-### Adım 1 – Uygulamayı Çalıştır
+### AdÄ±m 1 â€“ UygulamayÄ± Ã‡alÄ±ÅŸtÄ±r
 
-Visual Studio veya `dotnet run` ile uygulamayı başlat.
+Visual Studio veya `dotnet run` ile uygulamayÄ± baÅŸlat.
 
-?? **Ekran Görüntüsü (Ana ekran)**  
-
----
-
-### Adım 2 – Excel Dosyasını Seç
-
-`Pick Excel` butonuna basarak Excel dosyasını seç.
-
-?? **Ekran Görüntüsü (Excel seçimi)**  
+?? **Ekran GÃ¶rÃ¼ntÃ¼sÃ¼ (Ana ekran)**  
 
 ---
 
-### Adım 3 – Request Türünü Seç
+### AdÄ±m 2 â€“ Excel DosyasÄ±nÄ± SeÃ§
 
-ComboBox üzerinden request türünü seç:
+`Pick Excel` butonuna basarak Excel dosyasÄ±nÄ± seÃ§.
+
+?? **Ekran GÃ¶rÃ¼ntÃ¼sÃ¼ (Excel seÃ§imi)**  
+
+---
+
+### AdÄ±m 3 â€“ Request TÃ¼rÃ¼nÃ¼ SeÃ§
+
+ComboBox Ã¼zerinden request tÃ¼rÃ¼nÃ¼ seÃ§:
 
 - `channel_configure`
 - `channel_transfer`
 - vb.
 
-Seçim yapıldığında, sağ tarafta **beklenen Excel formatı** otomatik gösterilir.
+SeÃ§im yapÄ±ldÄ±ÄŸÄ±nda, saÄŸ tarafta **beklenen Excel formatÄ±** otomatik gÃ¶sterilir.
 
-?? **Ekran Görüntüsü (Tür seçimi + format açıklaması)**  
+?? **Ekran GÃ¶rÃ¼ntÃ¼sÃ¼ (TÃ¼r seÃ§imi + format aÃ§Ä±klamasÄ±)**  
 
 ---
 
-### Adım 4 – Convert (Excel ? JSON)
+### AdÄ±m 4 â€“ Convert (Excel ? JSON)
 
-`Convert` butonuna basıldığında:
+`Convert` butonuna basÄ±ldÄ±ÄŸÄ±nda:
 
 - Excel okunur
-- Seçilen tipe uygun JSON üretilir
-- JSON, Excel ile **aynı isimle** kaydedilir
+- SeÃ§ilen tipe uygun JSON Ã¼retilir
+- JSON, Excel ile **aynÄ± isimle** kaydedilir
 
-Örnek:
+Ã–rnek:
 
-?? **Ekran Görüntüsü (Convert sonrası başarılı çıktı)**  
+?? **Ekran GÃ¶rÃ¼ntÃ¼sÃ¼ (Convert sonrasÄ± baÅŸarÄ±lÄ± Ã§Ä±ktÄ±)**  
 
 ---
 
-### Adım 5 – Update (JSON ? BIN + Doğrulama)
+### AdÄ±m 5 â€“ Update (JSON ? BIN + DoÄŸrulama)
 
-`JSON ? BIN (Update)` butonuna basıldığında:
+`JSON ? BIN (Update)` butonuna basÄ±ldÄ±ÄŸÄ±nda:
 
-- JSON `out/` klasörüne yazılır
-- `flatc.exe` çağrılır
-- `.bin` dosyası üretilir
-- Üretilen `.bin`, tekrar JSON’a çevrilir
-- Doğrulama çıktısı `out/verify/` altına yazılır
+- JSON `out/` klasÃ¶rÃ¼ne yazÄ±lÄ±r
+- `flatc.exe` Ã§aÄŸrÄ±lÄ±r
+- `.bin` dosyasÄ± Ã¼retilir
+- Ãœretilen `.bin`, tekrar JSONâ€™a Ã§evrilir
+- DoÄŸrulama Ã§Ä±ktÄ±sÄ± `out/verify/` altÄ±na yazÄ±lÄ±r
 
-?? Örnek çıktı:
+?? Ã–rnek Ã§Ä±ktÄ±:
 out/
 ?? Channel_Configure.json
 ?? Channel_Configure.bin
@@ -136,45 +136,45 @@ out/
 
 
 
-?? **Ekran Görüntüsü (Update + doğrulama sonucu)**  
+?? **Ekran GÃ¶rÃ¼ntÃ¼sÃ¼ (Update + doÄŸrulama sonucu)**  
 
 ---
 
-## 6. Round-Trip Doğrulama Nedir?
+## 6. Round-Trip DoÄŸrulama Nedir?
 
-Bu proje şu akışı doğrular: Excel ? JSON ? BIN ? JSON
+Bu proje ÅŸu akÄ±ÅŸÄ± doÄŸrular: Excel ? JSON ? BIN ? JSON
 
 
-Amaç:
+AmaÃ§:
 
-- FlatBuffers dönüşümünde veri kaybı var mı?
+- FlatBuffers dÃ¶nÃ¼ÅŸÃ¼mÃ¼nde veri kaybÄ± var mÄ±?
 - JSON schema ile birebir uyumlu mu?
 
-Bu adım özellikle **saha ve cihaz entegrasyonu öncesi kritik öneme sahiptir.**
+Bu adÄ±m Ã¶zellikle **saha ve cihaz entegrasyonu Ã¶ncesi kritik Ã¶neme sahiptir.**
 
 ---
 
 ## 7. Teknik Detaylar
 
 - Excel okuma: **ClosedXML**
-- JSON üretimi: **System.Text.Json**
-- FlatBuffers işlemleri: **flatc.exe**
-- Proses yönetimi: **ProcessStartInfo**
-- Hata yönetimi: **try/catch + kullanıcıya açıklayıcı mesajlar**
+- JSON Ã¼retimi: **System.Text.Json**
+- FlatBuffers iÅŸlemleri: **flatc.exe**
+- Proses yÃ¶netimi: **ProcessStartInfo**
+- Hata yÃ¶netimi: **try/catch + kullanÄ±cÄ±ya aÃ§Ä±klayÄ±cÄ± mesajlar**
 
 ---
 
-## 8. Bilinen Kısıtlar
+## 8. Bilinen KÄ±sÄ±tlar
 
-- `channel_configure` için şu an yalnızca **RS-485** desteklenmektedir
-- UDP desteği ileride eklenebilir
-- Bazı request türleri örnek implementasyon olarak sınırlı satır sayısıyla çalışır
+- `channel_configure` iÃ§in ÅŸu an yalnÄ±zca **RS-485** desteklenmektedir
+- UDP desteÄŸi ileride eklenebilir
+- BazÄ± request tÃ¼rleri Ã¶rnek implementasyon olarak sÄ±nÄ±rlÄ± satÄ±r sayÄ±sÄ±yla Ã§alÄ±ÅŸÄ±r
 
 ---
 
-## 9. Geliştirici
+## 9. GeliÅŸtirici
 
-**Melda Hacer Çetin**  
+**Melda Hacer Ã‡etin**  
 Software Engineering Student  
 Excel ? JSON ? FlatBuffers Converter
 
@@ -184,11 +184,11 @@ Excel ? JSON ? FlatBuffers Converter
 
 Bu proje:
 
-- Konfigürasyon güvenliği
-- Veri doğrulama
-- Test öncesi hata yakalama
+- KonfigÃ¼rasyon gÃ¼venliÄŸi
+- Veri doÄŸrulama
+- Test Ã¶ncesi hata yakalama
 
-amaçlarıyla geliştirilmiştir.
+amaÃ§larÄ±yla geliÅŸtirilmiÅŸtir.
 
 
 
