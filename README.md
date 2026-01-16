@@ -33,7 +33,7 @@ Uygulama þu request türlerini destekler:
 
 ## 3. Proje Klasör Yapýsý
 
-```
+```text
 excel-to-json-converter/
 |
 +- ExcelToJsonConverter.App/
@@ -56,8 +56,6 @@ excel-to-json-converter/
 |     +- *.json                # BIN -> JSON doðrulama çýktýlarý
 |
 +- README.md
-
-```
 
 !! **out/** klasörü çýktý klasörüdür, repoya eklenmesi önerilmez.
 
@@ -82,6 +80,7 @@ FlatBuffers derleyicisi proje içerisinde hazýr olarak bulunmaktadýr:
 
 Visual Studio veya `dotnet run` ile uygulamayý baþlat.
 
+Örnek: 
 **Ekran Görüntüsü (Ana ekran)**
 
 ![Ana Ekran](screenshots/main_window.png) 
@@ -92,6 +91,7 @@ Visual Studio veya `dotnet run` ile uygulamayý baþlat.
 
 `Pick Excel` butonuna basarak Excel dosyasýný seç.
 
+Örnek: 
 **Ekran Görüntüsü (Excel seçimi)**
 
 ![Excel Seçimi](screenshots/select_excel.png) 
@@ -108,6 +108,7 @@ ComboBox üzerinden request türünü seç:
 
 Seçim yapýldýðýnda, sað tarafta **beklenen Excel formatý** otomatik gösterilir.
 
+Örnek: 
 **Ekran Görüntüsü (Tür seçimi + format açýklamasý)**
 
 ![Tür ve Format](screenshots/type_and_format.png)
@@ -139,13 +140,7 @@ Seçim yapýldýðýnda, sað tarafta **beklenen Excel formatý** otomatik gösterilir.
 - Üretilen `.bin`, tekrar JSON’a çevrilir
 - Doðrulama çýktýsý `out/verify/` altýna yazýlýr
 
-Örnek çýktý:
-out/
-?? Channel_Configure.json
-?? Channel_Configure.bin
-?? verify/
-?? Channel_Configure.json
-
+Örnek: 
 **Ekran Görüntüsü (Update + doðrulama sonucu)**
 
 ![Update Verify](screenshots/update_verify.png)
