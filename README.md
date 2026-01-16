@@ -35,30 +35,31 @@ Uygulama þu request türlerini destekler:
 
 ```
 excel-to-json-converter/
-?
-?? ExcelToJsonConverter.App/
-?  ?? MainWindow.axaml
-?  ?? MainWindow.axaml.cs
-?  ?? ExcelToJsonConverter.App.csproj
-?
-?? schemas/
-?  ?? rft.fbs                  # FlatBuffers schema
-?
-?? Tools/
-?  ?? flatbuffers/
-?     ?? win-x64/
-?        ?? flatc.exe          # FlatBuffers compiler
-?
-?? out/                        # Otomatik üretilen çýktýlar
-?  ?? <ExcelAdi>.json
-?  ?? <ExcelAdi>.bin
-?  ?? verify/
-?     ?? *.json                # BIN -> JSON doðrulama çýktýlarý
-?
-?? README.md
+|
++- ExcelToJsonConverter.App/
+|  +- MainWindow.axaml
+|  +- MainWindow.axaml.cs
+|  +- ExcelToJsonConverter.App.csproj
+|
++- schemas/
+|  +- rft.fbs                  # FlatBuffers schema
+|
++- Tools/
+|  +- flatbuffers/
+|     +- win-x64/
+|        +- flatc.exe          # FlatBuffers compiler
+|
++- out/                        # Otomatik üretilen çýktýlar
+|  +- <ExcelAdi>.json
+|  +- <ExcelAdi>.bin
+|  +- verify/
+|     +- *.json                # BIN -> JSON doðrulama çýktýlarý
+|
++- README.md
+
 ```
 
-?? **out/** klasörü çýktý klasörüdür, repoya eklenmesi önerilmez.
+!! **out/** klasörü çýktý klasörüdür, repoya eklenmesi önerilmez.
 
 ---
 
@@ -81,7 +82,7 @@ FlatBuffers derleyicisi proje içerisinde hazýr olarak bulunmaktadýr:
 
 Visual Studio veya `dotnet run` ile uygulamayý baþlat.
 
-?? **Ekran Görüntüsü (Ana ekran)**
+**Ekran Görüntüsü (Ana ekran)**
 
 ![Ana Ekran](screenshots/main_window.png) 
 
@@ -91,7 +92,7 @@ Visual Studio veya `dotnet run` ile uygulamayý baþlat.
 
 `Pick Excel` butonuna basarak Excel dosyasýný seç.
 
-?? **Ekran Görüntüsü (Excel seçimi)**
+**Ekran Görüntüsü (Excel seçimi)**
 
 ![Excel Seçimi](screenshots/select_excel.png) 
 
@@ -107,13 +108,13 @@ ComboBox üzerinden request türünü seç:
 
 Seçim yapýldýðýnda, sað tarafta **beklenen Excel formatý** otomatik gösterilir.
 
-?? **Ekran Görüntüsü (Tür seçimi + format açýklamasý)**
+**Ekran Görüntüsü (Tür seçimi + format açýklamasý)**
 
 ![Tür ve Format](screenshots/type_and_format.png)
 
 ---
 
-### Adým 4 – Convert (Excel ? JSON)
+### Adým 4 – Convert (Excel -> JSON)
 
 `Convert` butonuna basýldýðýnda:
 
@@ -122,15 +123,15 @@ Seçim yapýldýðýnda, sað tarafta **beklenen Excel formatý** otomatik gösterilir.
 - JSON, Excel ile **ayný isimle** kaydedilir
 
 Örnek:
-?? **Ekran Görüntüsü (Convert sonrasý baþarýlý çýktý)**
+**Ekran Görüntüsü (Convert sonrasý baþarýlý çýktý)**
 
 ![Convert Baþarýlý](screenshots/convert_success.png)
 
 ---
 
-### Adým 5 – Update (JSON ? BIN + Doðrulama)
+### Adým 5 – Update (JSON -> BIN + Doðrulama)
 
-`JSON ? BIN (Update)` butonuna basýldýðýnda:
+`JSON -> BIN (Update)` butonuna basýldýðýnda:
 
 - JSON `out/` klasörüne yazýlýr
 - `flatc.exe` çaðrýlýr
@@ -138,14 +139,14 @@ Seçim yapýldýðýnda, sað tarafta **beklenen Excel formatý** otomatik gösterilir.
 - Üretilen `.bin`, tekrar JSON’a çevrilir
 - Doðrulama çýktýsý `out/verify/` altýna yazýlýr
 
-?? Örnek çýktý:
+Örnek çýktý:
 out/
 ?? Channel_Configure.json
 ?? Channel_Configure.bin
 ?? verify/
 ?? Channel_Configure.json
 
-?? **Ekran Görüntüsü (Update + doðrulama sonucu)**
+**Ekran Görüntüsü (Update + doðrulama sonucu)**
 
 ![Update Verify](screenshots/update_verify.png)
 
