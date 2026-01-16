@@ -33,7 +33,7 @@ Uygulama þu request türlerini destekler:
 
 ## 3. Proje Klasör Yapýsý
 
-```text
+```
 excel-to-json-converter/
 |
 +- ExcelToJsonConverter.App/
@@ -56,6 +56,8 @@ excel-to-json-converter/
 |     +- *.json                # BIN -> JSON doðrulama çýktýlarý
 |
 +- README.md
+
+```
 
 !! **out/** klasörü çýktý klasörüdür, repoya eklenmesi önerilmez.
 
