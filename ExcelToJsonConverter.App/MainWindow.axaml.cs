@@ -307,10 +307,11 @@ public partial class MainWindow : Window
             Directory.CreateDirectory(verifyDir);
 
             var verifyArgs =
-                $"--json --strict-json --defaults-json --raw-binary " +
+                $"--json --strict-json --raw-binary " +
                 $"--root-type RFT.Request " +
                 $"-o \"{verifyDir}\" " +
                 $"\"{schemaPath}\" -- \"{binPath}\"";
+
 
             var (exit2, out2, err2) = RunProcess(flatcPath, verifyArgs, projectRoot);
 
@@ -325,20 +326,54 @@ public partial class MainWindow : Window
                 );
             }
 
-            // verify klasöründe oluşan JSON'u bul
-            var verifyJsonFiles = Directory.GetFiles(verifyDir, "*.json");
-            if (verifyJsonFiles.Length == 0)
-                throw new Exception("flatc çalıştı ama verify klasöründe JSON oluşmadı.");
+            // verify klasöründe beklenen JSON'u bul (Excel dosya adına göre)
+            var expectedVerifyJsonPath = Path.Combine(verifyDir, $"{baseName}.json");
 
-            var verifyJsonPath = verifyJsonFiles[0]; // çoğu durumda tek dosya olur
+            // flatc bazen isimlendirmeyi farklı yaparsa diye fallback de ekleyelim:
+            if (!File.Exists(expectedVerifyJsonPath))
+            {
+                var verifyJsonFiles = Directory.GetFiles(verifyDir, "*.json");
+                if (verifyJsonFiles.Length == 0)
+                    throw new Exception("flatc çalıştı ama verify klasöründe JSON oluşmadı.");
 
-            // 6) UI: sonuçları göster
-            TxtPreview.Text = json; // İstersen burada verify JSON'u da gösterebilirsin
+                // baseName geçen dosyayı ara
+                var match = verifyJsonFiles.FirstOrDefault(f =>
+                    Path.GetFileNameWithoutExtension(f)
+                        .Equals(baseName, StringComparison.OrdinalIgnoreCase));
 
+                if (match == null)
+                {
+                    // hiç eşleşme yoksa, mevcutları listeleyip hatayı anlaşılır ver
+                    var list = string.Join("\n", verifyJsonFiles.Select(Path.GetFileName));
+                    throw new Exception(
+                        $"Doğrulama JSON bulunamadı.\nBeklenen: {baseName}.json\n\nVerify klasöründekiler:\n{list}"
+                    );
+                }
+
+                expectedVerifyJsonPath = match;
+            }
+
+            var verifyJsonPath = expectedVerifyJsonPath;
+            var verifyJsonText = File.ReadAllText(verifyJsonPath, Encoding.UTF8);
+
+            // 6) JSON karşılaştırma
+            bool same = JsonDeepEquals(json, verifyJsonText, out var diffMsg);
+
+            if (!same)
+            {
+                throw new Exception(
+                    "JSON doğrulama başarısız!\n\n" +
+                    diffMsg + "\n\n" +
+                    $"VERIFY JSON: {verifyJsonPath}"
+                );
+            }
+
+            //Başarılı UI çıktısı
+            TxtPreview.Text = json; // istersen verifyJsonText de gösterebilirsin
             SuccessPanel.IsVisible = true;
             ErrorPanel.IsVisible = false;
 
-            TxtSuccessTitle.Text = "BIN oluşturuldu ve tekrar JSON'a çevrilerek doğrulandı:";
+            TxtSuccessTitle.Text = "BIN oluşturuldu, JSON doğrulama başarılı.";
             TxtResultPath.Text = $"BIN: {binPath}\nVERIFY JSON: {verifyJsonPath}";
         }
         catch (Exception ex)
@@ -349,6 +384,150 @@ public partial class MainWindow : Window
             SuccessPanel.IsVisible = false;
         }
     }
+
+    private static bool JsonDeepEquals(string originalJson, string verifyJson, out string diffMessage)
+    {
+        using var docA = JsonDocument.Parse(originalJson);
+        using var docB = JsonDocument.Parse(verifyJson);
+
+        var diffs = new List<string>();
+        CompareElements(docA.RootElement, docB.RootElement, "$", diffs);
+
+        if (diffs.Count == 0)
+        {
+            diffMessage = "JSON birebir uyumlu.";
+            return true;
+        }
+
+        diffMessage = "JSON farkları bulundu:\n- " + string.Join("\n- ", diffs.Take(10));
+        if (diffs.Count > 10) diffMessage += $"\n... (+{diffs.Count - 10} fark daha)";
+        return false;
+    }
+
+    private static bool ShouldIgnoreMissingProperty(string path, string key, JsonElement aValue)
+    {
+        // 1) channel_criteria objesinde defaultlar
+        // Path örnek: $.r.criteria[0].channel_criteria[3]
+        bool inChannelCriteriaObj =
+            path.Contains(".criteria[", StringComparison.Ordinal) &&
+            path.Contains(".channel_criteria[", StringComparison.Ordinal) &&
+            !path.Contains(".comparisons[", StringComparison.Ordinal);
+
+        if (inChannelCriteriaObj)
+        {
+            if (key == "invert_logic" && aValue.ValueKind == JsonValueKind.False) return true; // default false
+            if (key == "evaluation_idx" && aValue.ValueKind == JsonValueKind.Number && aValue.TryGetInt32(out int ei) && ei == 0) return true; // default 0
+        }
+
+        // 2) comparisons objesinde default op
+        // Path örnek: $.r.criteria[0].channel_criteria[3].comparisons[0]
+        bool inComparisonsObj =
+            path.Contains(".criteria[", StringComparison.Ordinal) &&
+            path.Contains(".channel_criteria[", StringComparison.Ordinal) &&
+            path.Contains(".comparisons[", StringComparison.Ordinal);
+
+        if (inComparisonsObj)
+        {
+            if (key == "op" && aValue.ValueKind == JsonValueKind.String && aValue.GetString() == "Eq")
+                return true; // enum default Eq varsayımı (şemaya bağlı)
+        }
+
+        return false;
+    }
+
+    private static void CompareElements(JsonElement a, JsonElement b, string path, List<string> diffs)
+    {
+        if (a.ValueKind != b.ValueKind)
+        {
+            diffs.Add($"{path}: tür farklı (A={a.ValueKind}, B={b.ValueKind})");
+            return;
+        }
+
+        switch (a.ValueKind)
+        {
+            case JsonValueKind.Object:
+                {
+                    var aProps = a.EnumerateObject().ToDictionary(p => p.Name, p => p.Value);
+                    var bProps = b.EnumerateObject().ToDictionary(p => p.Name, p => p.Value);
+
+                    foreach (var key in aProps.Keys.Except(bProps.Keys))
+                    {
+                        if (ShouldIgnoreMissingProperty(path, key, aProps[key]))
+                            continue;
+
+                        diffs.Add($"{path}.{key}: B'de yok");
+                    }
+
+                    foreach (var key in bProps.Keys.Except(aProps.Keys))
+                        diffs.Add($"{path}.{key}: A'da yok");
+
+                    foreach (var key in aProps.Keys.Intersect(bProps.Keys))
+                        CompareElements(aProps[key], bProps[key], $"{path}.{key}", diffs);
+
+                    break;
+                }
+
+            case JsonValueKind.Array:
+                {
+                    var aArr = a.EnumerateArray().ToArray();
+                    var bArr = b.EnumerateArray().ToArray();
+
+                    if (aArr.Length != bArr.Length)
+                    {
+                        diffs.Add($"{path}: dizi uzunluğu farklı (A={aArr.Length}, B={bArr.Length})");
+                        return;
+                    }
+
+                    for (int i = 0; i < aArr.Length; i++)
+                        CompareElements(aArr[i], bArr[i], $"{path}[{i}]", diffs);
+
+                    break;
+                }
+
+            case JsonValueKind.String:
+                if (a.GetString() != b.GetString())
+                    diffs.Add($"{path}: string farklı (A='{a.GetString()}', B='{b.GetString()}')");
+                break;
+
+            case JsonValueKind.Number:
+                {
+                    // int gibi mi?
+                    bool aIsInt = a.TryGetInt64(out long ai);
+                    bool bIsInt = b.TryGetInt64(out long bi);
+
+                    if (aIsInt && bIsInt)
+                    {
+                        if (ai != bi) diffs.Add($"{path}: number farklı (A={ai}, B={bi})");
+                        break;
+                    }
+
+                    double da = a.GetDouble();
+                    double db = b.GetDouble();
+
+                    const double EPS = 1e-5;
+                    if (Math.Abs(da - db) > EPS)
+                        diffs.Add($"{path}: number farklı (A={da}, B={db})");
+
+                    break;
+                }
+
+            case JsonValueKind.True:
+            case JsonValueKind.False:
+                if (a.GetBoolean() != b.GetBoolean())
+                    diffs.Add($"{path}: bool farklı (A={a.GetBoolean()}, B={b.GetBoolean()})");
+                break;
+
+            case JsonValueKind.Null:
+            case JsonValueKind.Undefined:
+                break;
+
+            default:
+                if (a.GetRawText() != b.GetRawText())
+                    diffs.Add($"{path}: değer farklı (A={a.GetRawText()}, B={b.GetRawText()})");
+                break;
+        }
+    }
+
 
     // Dış bir executable'ı yani flatc.exe çalıştırır ve sonucu döndürür.
     private static (int exitCode, string stdout, string stderr) RunProcess(string exe, string args, string workingDir)
@@ -810,7 +989,7 @@ public partial class MainWindow : Window
             var vals = SplitCsv(valuesCsv).Select(s => double.Parse(s, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
 
             if (ops.Length != vals.Length)
-                throw new Exception("Criteria: comparison_ops ve comparison_values adetleri e�le�miyor.");
+                throw new Exception("Criteria: comparison_ops ve comparison_values adetleri eslesmiyor.");
 
             var comparisons = new List<object>();
             for (int i = 0; i < ops.Length; i++)
